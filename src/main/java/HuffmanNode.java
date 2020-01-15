@@ -7,6 +7,8 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
 import java.util.ArrayList;
 import java.util.Collections;
 
+import static java.lang.Integer.compare;
+
 public class HuffmanNode implements Comparable<HuffmanNode> {
     public int symbol;
     public HuffmanNode a;
@@ -31,7 +33,7 @@ public class HuffmanNode implements Comparable<HuffmanNode> {
 
     public static HuffmanNode method2(HuffmanNode[] inputs)
     {
-        ArrayList<HuffmanNode> result = new ArrayList<>();
+        ArrayList<HuffmanNode> result = new ArrayList<HuffmanNode>();
         for(int i = 0; i < inputs.length; i++)
             result.add(inputs[i]);
 
@@ -82,7 +84,6 @@ public class HuffmanNode implements Comparable<HuffmanNode> {
         }
     }
 
-    @Override
     public int compareTo(HuffmanNode o) {
         return -Integer.compare(frequency, o.frequency);
     }

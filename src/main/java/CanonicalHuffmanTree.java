@@ -159,7 +159,7 @@ public class CanonicalHuffmanTree {
 
         //Assign new canonical bits.
         BitSet bits = new BitSet(firstOccurrence,0);
-        HashSet<BitSet> leafs = new HashSet<>();
+        HashSet<BitSet> leafs = new HashSet<BitSet>();
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
         {
             for(int x = 0; x < depths[i]; x++)
@@ -173,7 +173,7 @@ public class CanonicalHuffmanTree {
         }
 
         DecodeNode root = new DecodeNode(leafs, new BitSet(0));
-        HashMap<BitSet, DecodeNode> dictionary = new HashMap<>();
+        HashMap<BitSet, DecodeNode> dictionary = new HashMap<BitSet, DecodeNode>();
         root.addToDictionary(dictionary);
 
         DecodeNode[][] nodes = new DecodeNode[lastOccurrence+1][];
