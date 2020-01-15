@@ -11,6 +11,7 @@ public class BitSet {
 
     long value;
     int length;
+
     public BitSet(int length)
     {
         this.length = length;
@@ -20,21 +21,6 @@ public class BitSet {
     {
         this.length = length;
         this.value = value;
-    }
-
-    public BitSet(boolean bit)
-    {
-        this.length = 1;
-        value = bit ? 1 : 0;
-    }
-
-    public BitSet(byte[] data)
-    {
-        this.length = data.length << 3;
-        value = 0;
-        for(int i = 0; i < length; i++)
-            if((data[i>>3] >> (i & 7) & 1) == 1)
-                value |= 1l << i;
     }
 
     public void increase()
