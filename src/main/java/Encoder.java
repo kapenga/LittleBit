@@ -17,6 +17,8 @@ public class Encoder {
         int[] symbolFrequencies = new int[1 << 20];
         int[][] data = new int[input.length][];
         int[] lengths = new int[input.length];
+
+        //The minCount can be used to have a speed/compression ratio trade off dial. MinCount should be at least 4 according to tests. 4 or 5 is optimal in most cases.
         final int MinCount = 4;
         int totalLength = 0;
 

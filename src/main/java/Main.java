@@ -13,7 +13,7 @@ import java.util.Locale;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        if(args.length < 3)
+        if(args.length < 3 || !(args[0].toLowerCase(Locale.ROOT).startsWith("-e") || args[0].toLowerCase(Locale.ROOT).startsWith("-d")))
         {
             System.out.println("Usage: -e | -d [source file] [destination file]");
             System.out.println("-e for encode. -d for decode.");
