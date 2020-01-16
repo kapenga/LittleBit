@@ -7,8 +7,6 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
 import java.util.ArrayList;
 import java.util.Collections;
 
-import static java.lang.Integer.compare;
-
 public class HuffmanNode implements Comparable<HuffmanNode> {
     public int symbol;
     public HuffmanNode a;

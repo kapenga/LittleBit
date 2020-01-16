@@ -74,41 +74,6 @@ public class BPlusTreeLongInt {
         root.removeUnderflow();
     }
 
-    public long getHighestValueKey(int removeFrequenciesBelow)
-    {
-        Node n = root;
-        while (!(n instanceof LeafNode))
-            n = ((InternalNode) n).children[0];
-
-        int bestValue = Integer.MIN_VALUE;
-        long bestNode = Long.MIN_VALUE;
-        LeafNode leaf = (LeafNode)n;
-        while(leaf != null)
-        {
-            int i = 0;
-            int x = 0;
-            while(x < leaf.keyCount) {
-                int v = leaf.values[x];
-                if (v < removeFrequenciesBelow) {
-                    x++;
-                } else {
-                    if (v >= bestValue) {
-                        bestValue = v;
-                        bestNode = leaf.keys[x];
-                    }
-                    leaf.keys[i] = leaf.keys[x];
-                    leaf.values[i] = v;
-                    i++;
-                    x++;
-                }
-            }
-            leaf.keyCount = i;
-            leaf = leaf.next;
-        }
-
-        return bestNode;
-    }
-
     LeafNode iterator;
     int iteratorIndex;
     public boolean prepareIteration()

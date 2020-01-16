@@ -24,6 +24,7 @@ public class Encoder {
 
 
         //First cycle
+        //Convert bytes to symbols
         int[] references = new int[256];
         for (int i = 0; i < input.length; i++) {
             data[i] = new int[input[i].length + 1];
@@ -41,6 +42,9 @@ public class Encoder {
         }
         int startSymbols = symbolIndex;
 
+        //Find the count for every combination of symbols that occur next to each other
+        //The B+ Tree is surprising effective compared to hashing.
+        //Symbol combinations are registered as a long, combining the 2 (32 bit) int symbols to one (64 bit) long.
         BPlusTreeLongInt set = new BPlusTreeLongInt();
 
         for (int i = 0; i < input.length; i++) {
@@ -62,17 +66,22 @@ public class Encoder {
                 x++;
             }
         }
+
+        //Now we enter the main loop.
         while(true) {
+
+            //Remove the symbol combinations that will not be useful for further analysis/usage.
+            //This is basically a cutoff point in a NP-problem.
             set.removeValuesBelow(MinCount);
 
+            //Next phase is finding the combination of symbols that has the best properties to be fused together to form a new symbol.
             if(!set.prepareIteration())
                 break;
 
             long bestNode = Long.MIN_VALUE;
             double bestGain = 0;
             int bestFrequency = 0;
-            while(true)
-            {
+            do {
                 long node = set.iterationKey();
                 int frequency = set.iterationValue();
                 int symbol1 = (int) (node >> 32);
@@ -81,24 +90,29 @@ public class Encoder {
                 int symbol1Frequency = symbolFrequencies[symbol1];
                 int symbol2Frequency = symbolFrequencies[symbol2];
 
-                double normalisedSymbol1Frequency = (double) frequency / symbol1Frequency;
-                double normalisedSymbol2Frequency = (double) frequency / symbol2Frequency;
-                double max = Math.max(normalisedSymbol1Frequency, normalisedSymbol2Frequency);
-                double min = Math.min(normalisedSymbol1Frequency, normalisedSymbol2Frequency);
-                double gain = (frequency * ((max * 3) + min)) - 0.2 -  (1.0 - min) - (1.0 - max);
+                double ratio1 = (double) frequency / symbol1Frequency;
+                double ratio2 = (double) frequency / symbol2Frequency;
+                double max = Math.max(ratio1, ratio2);
+                double min = Math.min(ratio1, ratio2);
+
+                //A combination of frequency (count) in combination with the ratio of both parent symbols seems to lead to the best results.
+                //The '0.2 -  (1.0 - min) - (1.0 - max);' part is to penalise low gains. The result is that the compressor recognises incompressible data and cuts of sooner.
+                //The usages of the ratio's results in better compression because it helps the algorithm to steer in a direction where there are better future options of combining symbols.
+                //It's like a gamble of the best direction in a breadth first search because traversing every possible path would require too much time.
+                double gain = (frequency * ((max * 3) + min)) - 0.2 - (1.0 - min) - (1.0 - max);
 
                 if (gain > bestGain || (gain >= bestGain && frequency > bestFrequency)) {
                     bestNode = node;
                     bestGain = gain;
                     bestFrequency = frequency;
                 }
-                if(!set.nextIteration())
-                    break;
-            }
+            } while (set.nextIteration());
 
+            //If there is no predicted gain: jump out of the loop.
             if(bestGain <= 0)
                 break;
 
+            //Now we have to fuse the 2 best symbols to a new one.
             int bestSymbol1 = (int)(bestNode >> 32);
             int bestSymbol2 = (int)(bestNode);
             symbolReferences[symbolIndex] = bestNode;
@@ -106,6 +120,10 @@ public class Encoder {
 
             int newSymbol = symbolIndex++;
 
+            //This loop does several things simultaneously.
+            // 1. It fuses the 2 'best' symbols together to a new one.
+            // 2. It removes the empty gaps left behind by the second symbol that is converted to a new one. (The new symbol is located on the first sumbol)
+            // 3. It recounts the new situation.
             int div = 0;
             for (int i = 0; i < data.length; i++) {
                 int moveTo = 0;
@@ -142,8 +160,10 @@ public class Encoder {
             symbolFrequencies[bestSymbol2] -= div;
             totalLength -= div;
 
+            //The best node is used and removed from the pool of options.
             set.delete(bestNode);
 
+            //This part is to give some information about the process but only once every second.
             Instant current = Instant.now();
             if(Duration.between(start, current).getSeconds() > 0) {
                 System.out.println(symbolIndex + ": " + " best node: " + bestSymbol1 + "/" + bestSymbol2 + " gain: " + Math.round(bestGain) + " freq: " + bestFrequency + " left: " + totalLength);
@@ -153,22 +173,29 @@ public class Encoder {
 
         System.out.println("Number of symbols to encode: " + totalLength);
 
+        //Convert the symbols and their parents to Huffman nodes.
         HuffmanNode[] nodes = new HuffmanNode[symbolIndex];
         for(int i = 1; i < symbolIndex; i++)
             nodes[i] = (i < startSymbols ? new HuffmanNode((int)symbolReferences[i], null, null) : new HuffmanNode(-2, nodes[(int)(symbolReferences[i]>>32)], nodes[(int)(symbolReferences[i])]));
 
+        //Register the counts.
         for(int i = 0; i < data.length; i++)
             for(int x = 0; x < lengths[i]; x++)
                 nodes[data[i][x]].frequency++;
         nodes[endOfLineSymbol].symbol = -1;
 
+        //Stupid piece of code that should be removed. The nodes array starts from index 1. This loop moves everything so things start at index 0.
         HuffmanNode[] forHuffman = new HuffmanNode[symbolIndex-1];
-        for(int i = 0; i < symbolIndex-1; i++)
-            forHuffman[i] = nodes[i+1];
+        System.arraycopy(nodes, 1, forHuffman, 0, symbolIndex - 1);
 
+        //Lets make a canonical Huffman tree.
         CanonicalHuffmanTree tree = new CanonicalHuffmanTree(forHuffman);
 
+        //And lastly write the data.
+        //First the tree.
         tree.writeTree(writer);
+
+        //And now the nodes.
         for(int i = 0; i < data.length; i++)
             for(int x = 0; x < lengths[i]; x++)
                 nodes[data[i][x]].bitSet.write(writer);
