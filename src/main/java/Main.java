@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.util.Locale;
 
 public class Main {
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         if(args.length < 3 || !(args[0].toLowerCase(Locale.ROOT).startsWith("-e") || args[0].toLowerCase(Locale.ROOT).startsWith("-d")))
         {
             System.out.println("Usage: -e | -d [source file] [destination file]");
@@ -41,14 +41,19 @@ public class Main {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-            } else {
-                FileInputStream fis = new FileInputStream(args[1]);
-                BitStreamReader reader = new BitStreamReader(fis);
-                FileOutputStream writer = new FileOutputStream(args[2], false);
-                DecodeNode root = CanonicalHuffmanTree.readTree(reader);
-                root.readField(reader, writer);
-                fis.close();
-                writer.close();
+            } else //Decode
+            {
+                try {
+                    FileInputStream fis = new FileInputStream(args[1]);
+                    BitStreamReader reader = new BitStreamReader(fis);
+                    FileOutputStream writer = new FileOutputStream(args[2], false);
+                    DecodeNode root = CanonicalHuffmanTree.readTree(reader);
+                    root.readField(reader, writer);
+                    fis.close();
+                    writer.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
             double seconds = Duration.between(start, Instant.now()).toMillis() / 1000.0;
             System.out.println("Done in: " + seconds + " seconds");
