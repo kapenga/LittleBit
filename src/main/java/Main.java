@@ -5,6 +5,7 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
  */
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.time.Duration;
@@ -30,20 +31,23 @@ public class Main {
             if (encode) {
                 try {
                     byte[] data = Files.readAllBytes(file.toPath());
-                    BitStreamWriter writer = new BitStreamWriter(args[2]);
+                    FileOutputStream fos = new FileOutputStream(args[2]);
+                    BitStreamWriter writer = new BitStreamWriter(fos);
 
-                    Encoder.Process(new byte[][]{data}, writer);
+                    Encoder.Process(new byte[][]{data}, writer, writer);
                     writer.close();
-                    System.out.println(writer.length());
+                    fos.close();
+                    System.out.println("Total size:\t\t\t" + writer.length() + " bytes");
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             } else {
-                BitStreamReader reader = new BitStreamReader(args[1]);
+                FileInputStream fis = new FileInputStream(args[1]);
+                BitStreamReader reader = new BitStreamReader(fis);
                 FileOutputStream writer = new FileOutputStream(args[2], false);
                 DecodeNode root = CanonicalHuffmanTree.readTree(reader);
                 root.readField(reader, writer);
-                reader.close();
+                fis.close();
                 writer.close();
             }
             double seconds = Duration.between(start, Instant.now()).toMillis() / 1000.0;

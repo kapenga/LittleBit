@@ -4,18 +4,18 @@ Written by Wybren Kapenga
 Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
  */
 
-public class BPlusTreeLongInt {
+class BPlusTreeLongInt {
 
     private static final int DEFAULT_BRANCHING_FACTOR_INNER_NODE = 128;
     private static final int DEFAULT_BRANCHING_FACTOR = 64;
 
     private Node root;
 
-    public BPlusTreeLongInt() {
+    BPlusTreeLongInt() {
         root = new LeafNode();
     }
 
-    public boolean insert(long key, int value) {
+    private void insert(long key, int value) {
         if (root.isOverflow()) {
             Node sibling = root.split();
             InternalNode newRoot = new InternalNode();
@@ -23,29 +23,21 @@ public class BPlusTreeLongInt {
             newRoot.insertChild(1, sibling);
             root = newRoot;
         }
-        return root.insert(key, value);
+        root.insert(key, value);
     }
 
-    public boolean delete(long key) {
-        return root.delete(key);
+    void delete(long key) {
+         root.delete(key);
     }
 
-    public int get(long key)
-    {
-        return root.get(key);
-    }
-
-    public int addTo(long key, int value)
+    void addTo(long key, int value)
     {
         int v = root.addTo(key, value);
-        if(v == Integer.MIN_VALUE) {
+        if(v == Integer.MIN_VALUE)
             insert(key, value);
-            return value;
-        }
-        return v;
     }
 
-    public void removeValuesBelow(int value)
+    void removeValuesBelow(int value)
     {
         Node n = root;
         while (!(n instanceof LeafNode))
@@ -74,9 +66,9 @@ public class BPlusTreeLongInt {
         root.removeUnderflow();
     }
 
-    LeafNode iterator;
-    int iteratorIndex;
-    public boolean prepareIteration()
+    private LeafNode iterator;
+    private int iteratorIndex;
+    boolean prepareIteration()
     {
         Node n = root;
         while (!(n instanceof LeafNode))
@@ -88,7 +80,7 @@ public class BPlusTreeLongInt {
         return iterator != null;
     }
 
-    public boolean nextIteration()
+    boolean nextIteration()
     {
         iteratorIndex++;
         if(iterator.keyCount == iteratorIndex)
@@ -98,18 +90,17 @@ public class BPlusTreeLongInt {
             while(iterator != null && iterator.keyCount == 0)
                 iterator = iterator.next;
 
-            if(iterator == null)
-                return false;
+            return iterator != null;
         }
         return true;
     }
 
-    public long iterationKey()
+    long iterationKey()
     {
         return iterator.keys[iteratorIndex];
     }
 
-    public int iterationValue()
+    int iterationValue()
     {
         if(iterator.keyCount <= iteratorIndex)
         {
@@ -117,12 +108,6 @@ public class BPlusTreeLongInt {
         }
         return iterator.values[iteratorIndex];
     }
-
-    public int size()
-    {
-        return root.size();
-    }
-
 
     private abstract class Node {
         long[] keys;
@@ -241,12 +226,8 @@ public class BPlusTreeLongInt {
                 if(children[index].keyCount == 0)
                 {
                     deleteChild(index);
-                    //if(root.keyCount == 1 && root instanceof InternalNode)
-                    //    root = ((InternalNode)root).children[0];
                 }
                 else {
-//                    if(children[index].keyCount == 1 && children[index] instanceof InternalNode)
-//                        children[index] = ((InternalNode)children[index]).children[0];
                     children[index++].removeUnderflow();
                 }
             }

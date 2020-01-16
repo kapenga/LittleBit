@@ -8,23 +8,23 @@ import java.io.FileOutputStream;
 import java.util.HashMap;
 import java.util.HashSet;
 
-public class DecodeNode {
+class DecodeNode {
 
     private DecodeNode a;
     private DecodeNode b;
 
-    public byte[] data;
+    byte[] data;
     private BitSet bits;
 
     private DecodeNode toResolveA;
     private DecodeNode toResolveB;
 
 
-    public DecodeNode(HashSet<BitSet> leaves, BitSet bits)
+    DecodeNode(HashSet<BitSet> leaves, BitSet bits)
     {
-        this.bits = bits.clone();
+        this.bits = bits.copy();
 
-        BitSet newBits = bits.clone();
+        BitSet newBits = bits.copy();
         newBits.increaseLength();
         newBits.shiftLeft();
 
@@ -36,7 +36,7 @@ public class DecodeNode {
         }
     }
 
-    public DecodeNode get(BitStreamReader reader) throws Exception {
+    DecodeNode get(BitStreamReader reader) throws Exception {
         if(a == null)//is leave
             return this;
         int bit = reader.nextBit();
@@ -45,7 +45,7 @@ public class DecodeNode {
         return b.get(reader);
     }
 
-    public void addToDictionary(HashMap<BitSet, DecodeNode> dictionary)
+    void addToDictionary(HashMap<BitSet, DecodeNode> dictionary)
     {
         if(a == null)//is leave
         {
@@ -58,18 +58,18 @@ public class DecodeNode {
         }
     }
 
-    public void setData(byte[] data)
+    void setData(byte[] data)
     {
         this.data = data;
     }
 
-    public void setToResolveNodes(DecodeNode a, DecodeNode b)
+    void setToResolveNodes(DecodeNode a, DecodeNode b)
     {
         this.toResolveA = a;
         this.toResolveB = b;
     }
 
-    public void resolve()
+    void resolve()
     {
         if(data != null)
             return;
@@ -79,17 +79,15 @@ public class DecodeNode {
     }
 
 
-    public static byte[] combine(byte[] key1, byte[] key2)
+    private static byte[] combine(byte[] key1, byte[] key2)
     {
         byte[] key = new byte[key1.length + key2.length];
-        for(int i = 0; i < key1.length; i++)
-            key[i] = key1[i];
-        for(int i = 0; i < key2.length; i++)
-            key[key1.length + i] = key2[i];
+        System.arraycopy(key1, 0, key, 0, key1.length);
+        System.arraycopy(key2, 0, key, key1.length, key2.length);
         return key;
     }
 
-    public void readField(BitStreamReader reader, FileOutputStream output) throws Exception {
+    void readField(BitStreamReader reader, FileOutputStream output) throws Exception {
         DecodeNode node = get(reader);
         while(node.data.length > 0)
         {

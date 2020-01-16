@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 
-public class CanonicalHuffmanTree {
+class CanonicalHuffmanTree {
 
     private int[] depths;
     private HuffmanNode[][] frequencyArray;
@@ -18,7 +18,7 @@ public class CanonicalHuffmanTree {
     private int biggestCount;
 
 
-    public CanonicalHuffmanTree(HuffmanNode[] frequencies)
+    CanonicalHuffmanTree(HuffmanNode[] frequencies)
     {
         endOfLineSymbol = frequencies[0];
         HuffmanNode root = HuffmanNode.method2(frequencies);
@@ -46,9 +46,7 @@ public class CanonicalHuffmanTree {
         for(int i = 0; i < newFreqs.length; i++)
             newFreqs[i] = new HuffmanNode[depths[i]];
 
-        for(int i = 0; i < frequencies.length; i++)
-        {
-            HuffmanNode frequency = frequencies[i];
+        for (HuffmanNode frequency : frequencies) {
             int index = frequency.depth;
             newFreqs[index][--depths[index]] = frequency;
         }
@@ -101,10 +99,9 @@ public class CanonicalHuffmanTree {
             i>>>=1;
         }
         return result;
-        //return (int)Math.ceil((Math.log(i) / Math.log(2)));
     }
 
-    public void writeTree(BitStreamWriter writer) throws IOException {
+    void writeTree(BitStreamWriter writer) throws IOException {
         long startLength = writer.length();
 
         int bitSize = bitSize(biggestCount);
@@ -147,19 +144,19 @@ public class CanonicalHuffmanTree {
             }
         }
         long endLength = writer.length();
-        System.out.println("Size of library: " + (endLength - startLength) + " bytes.");
+        System.out.println("Size of library:\t" + (endLength - startLength) + " bytes");
     }
 
-    public static DecodeNode readTree(BitStreamReader reader) throws Exception {
-        int bitSize = (int)BitSet.read(reader, 5).value;
-        int firstOccurrence = (int)BitSet.read(reader, 6).value;
-        int lastOccurrence = (int)BitSet.read(reader, 6).value;
+    static DecodeNode readTree(BitStreamReader reader) throws Exception {
+        int bitSize = (int)BitSet.read(reader, 5).getValue();
+        int firstOccurrence = (int)BitSet.read(reader, 6).getValue();
+        int lastOccurrence = (int)BitSet.read(reader, 6).getValue();
 
         BitSet[][] huffbits = new BitSet[lastOccurrence+1][];
         int[] depths = new int[lastOccurrence+1];
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
         {
-            depths[i] =  (int)BitSet.read(reader, bitSize).value;
+            depths[i] =  (int)BitSet.read(reader, bitSize).getValue();
             huffbits[i] = new BitSet[depths[i]];
         }
 
@@ -170,7 +167,7 @@ public class CanonicalHuffmanTree {
         {
             for(int x = 0; x < depths[i]; x++)
             {
-                huffbits[i][x] = bits.clone();
+                huffbits[i][x] = bits.copy();
                 leafs.add(huffbits[i][x]);
                 bits.increase();
             }
@@ -196,11 +193,11 @@ public class CanonicalHuffmanTree {
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
         {
             if(depths[i] > 0) {
-                int literalCount = (int) BitSet.read(reader, bitSize(depths[i])).value;
+                int literalCount = (int) BitSet.read(reader, bitSize(depths[i])).getValue();
                 for (int x = 0; x < literalCount; x++) {
 
                     if (nodes[i][x] != endOfLineSymbol) {
-                        byte literalByte = (byte) BitSet.read(reader, 8).value;
+                        byte literalByte = (byte) BitSet.read(reader, 8).getValue();
                         nodes[i][x].setData(new byte[]{literalByte});
                     }
                 }

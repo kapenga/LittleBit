@@ -8,9 +8,10 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 
-public class Encoder {
+class Encoder {
 
-    public static void Process(byte[][] input, BitStreamWriter writer) throws IOException {
+    //TreeWriter and dataWriter can be the same object. It just gives the option to save the tree and the data separately.
+    static void Process(byte[][] input, BitStreamWriter treeWriter, BitStreamWriter dataWriter) throws IOException {
         int symbolIndex = 1;
         int endOfLineSymbol = symbolIndex++;
         long[] symbolReferences = new long[1 << 20];
@@ -70,7 +71,8 @@ public class Encoder {
         }
 
         //Now we enter the main loop.
-        while(true) {
+        //Jump out if the maximum number of symbols is reached.
+        while(symbolIndex < symbolReferences.length) {
 
             //Remove the symbol combinations that will not be useful for further analysis/usage.
             //This is basically a cutoff point in a NP-problem.
@@ -173,7 +175,7 @@ public class Encoder {
             }
         }
 
-        System.out.println("Number of symbols to encode: " + totalLength);
+        System.out.println("Symbols to encode:\t" + totalLength);
 
         //Convert the symbols and their parents to Huffman nodes.
         HuffmanNode[] nodes = new HuffmanNode[symbolIndex];
@@ -186,7 +188,7 @@ public class Encoder {
                 nodes[data[i][x]].frequency++;
         nodes[endOfLineSymbol].symbol = -1;
 
-        //Stupid piece of code that should be removed. The nodes array starts from index 1. This loop moves everything so things start at index 0.
+        //Stupid piece of code that should be removed. The nodes array starts from index 1. This code moves everything so things start at index 0.
         HuffmanNode[] forHuffman = new HuffmanNode[symbolIndex-1];
         System.arraycopy(nodes, 1, forHuffman, 0, symbolIndex - 1);
 
@@ -195,12 +197,12 @@ public class Encoder {
 
         //And lastly write the data.
         //First the tree.
-        tree.writeTree(writer);
+        tree.writeTree(treeWriter);
 
         //And now the nodes.
         for(int i = 0; i < data.length; i++)
             for(int x = 0; x < lengths[i]; x++)
-                nodes[data[i][x]].bitSet.write(writer);
+                nodes[data[i][x]].bitSet.write(dataWriter);
     }
 
 }

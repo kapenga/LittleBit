@@ -5,19 +5,19 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
  */
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 
-public class HuffmanNode implements Comparable<HuffmanNode> {
-    public int symbol;
-    public HuffmanNode a;
-    public HuffmanNode b;
-    public int frequency;
+class HuffmanNode implements Comparable<HuffmanNode> {
+    int symbol;
+    HuffmanNode a;
+    HuffmanNode b;
+    int frequency;
     int depth;
 
+    BitSet bitSet;
 
-    public BitSet bitSet;
-
-    public HuffmanNode(int symbol, HuffmanNode a, HuffmanNode b)
+    HuffmanNode(int symbol, HuffmanNode a, HuffmanNode b)
     {
         this.symbol = symbol;
         this.a = a;
@@ -29,11 +29,9 @@ public class HuffmanNode implements Comparable<HuffmanNode> {
         frequency = 0;
     }
 
-    public static HuffmanNode method2(HuffmanNode[] inputs)
+    static HuffmanNode method2(HuffmanNode[] inputs)
     {
-        ArrayList<HuffmanNode> result = new ArrayList<HuffmanNode>();
-        for(int i = 0; i < inputs.length; i++)
-            result.add(inputs[i]);
+        ArrayList<HuffmanNode> result = new ArrayList<>(Arrays.asList(inputs));
 
         Collections.sort(result);
 
@@ -59,18 +57,17 @@ public class HuffmanNode implements Comparable<HuffmanNode> {
                 result.add(0, c);
         }
 
-        HuffmanNode root = result.get(0);
-        return root;
+        return result.get(0);
     }
 
 
 
-    public boolean isLeaf()
+    private boolean isLeaf()
     {
         return symbol > -3;
     }
 
-    public void getDepths(int[] depths, int currentDepth)
+    void getDepths(int[] depths, int currentDepth)
     {
         depth = currentDepth;
         if(isLeaf())
