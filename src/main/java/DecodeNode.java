@@ -4,7 +4,7 @@ Written by Wybren Kapenga
 Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
  */
 
-import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.HashSet;
 
@@ -87,7 +87,7 @@ class DecodeNode {
         return key;
     }
 
-    void readField(BitStreamReader reader, FileOutputStream output) throws Exception {
+    void readField(BitStreamReader reader, OutputStream output) throws Exception {
         DecodeNode node = get(reader);
         while(node.data.length > 0)
         {
