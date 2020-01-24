@@ -83,7 +83,7 @@ and |girl |with a |peculiar |ver|n|al |charm|. What |possesse|d
 |at |herself|, and |seeing |her |reflection |blush, |blushed |the  
 |more|.  
 
-The text above a small citation from Book1. The text between the pipe symbols represent one Huffman tree leaf. As can be seen here, the algorithm is able to map the text to a basic language model while keeping the sum of the size of the Huffman tree and the size of the data as small as possible.
+The text above a small citation from Book1. The text between the pipe symbols represent one Huffman tree leaf. As can be seen here, the algorithm is able to map the text to a basic language model while keeping the sum of the size of the Huffman tree and the size of the data as small as possible.  
 This leads to a few choices that are strange on first sight. For example the above text contains ‘blushed’ 2 times. The first time this word is divided in ‘blushe’ and ‘d\n’. The second time it is undivided and has an extra space character on the end. Apparently the algorithm has decided that ‘blushe’ and ‘d_’ has enough occurrences to warrant an extra Huffman tree leaf, resulting in a leaf with ‘blushed_’ while ‘blushe’ and ‘d\n’ (without the space character but with a newline character) is more effectively stored as 2 separate Huffman tree leaves.
 
 The following steps lead to the results shown above:
@@ -103,8 +103,8 @@ The following steps lead to the results shown above:
 10. Create a canonical Huffman tree using the symbols and their frequency.
 11. Encode the data using the Huffman tree.
 
-The somewhat random looking frequency ratio (min/max) in the scoring mechanism has an explainable existence. A symbol merge has a negative impact on the frequency of the 2 symbols involved but also on the frequency of the symbol combination that are neighbours of the symbol combination that will be merged. This negatively impacts the position in the Huffman tree for those symbols. A high maximum ratio is a good indicator that the two, soon to be merged, symbols have a strong statistical relation to each other and overall compression ratios will improve by merging. Giving the best ratio a higher weight but also involving the lowest ratio seems to be the best option. Better indicators of a possible best merge are subject of future research.
-For larger files (like enwik8 or bigger) an adjusted scoring mechanism is probably better. Because of the bigger size of the library the minimum frequency should probably be 5 or even higher.
+The somewhat random looking frequency ratio (min/max) in the scoring mechanism has an explainable existence. A symbol merge has a negative impact on the frequency of the 2 symbols involved but also on the frequency of the symbol combination that are neighbours of the symbol combination that will be merged. This negatively impacts the position in the Huffman tree for those symbols. A high maximum ratio is a good indicator that the two, soon to be merged, symbols have a strong statistical relation to each other and overall compression ratios will improve by merging. Giving the best ratio a higher weight but also involving the lowest ratio seems to be the best option. Better indicators of a possible best merge are subject of future research.  
+For larger files (like enwik8 or bigger) an adjusted scoring mechanism is probably better. Because of the bigger size of the library the minimum frequency should probably be 5 or even higher.  
 
 ### Additional research
 Several additional techniques are tried out to improve compression. The most successful technique was combining symbols while allowing a fixed size gap. Binary data is often dividable in fixed size parts of for example 4 bytes in case of a 32 bits integer array. This technique made it possible to find those repeating occurrences for additional compression power and improved the compression of binary data by around 1% and text by around 0.5%, but at a great cost of at least tripling encoding time. Also decoding would be more complex with recursive patterns. Furthermore it hurt the possibility of the random access reading of a piece of data. Therefor this technique is not presented here.
@@ -116,12 +116,12 @@ The technique used in LittleBit can be described as a bottom-up approach. Symbol
 The fourth and last technique to mention is using statistics to find natural ‘dividers’ in the data. The idea behind this is that language optimized models such as HuffWord use knowledge to separate words from nonwords to improve compression ratios. Using these ‘dividers’ in the scoring mechanism did not improve compression. It might be possible that LittleBit is able to generate better compression by not dividing the words and the nonwords and that acknowledging common combinations of those two types turn out to be more effective in the end.
 
 ### Possible improvements
-When sacrificing random access reading, simplicity or the static nature of this algorithm, improvements of compression ratios are easy to make. Replacing Huffman coding with more entropy optimal encoders, using context aware predictors or even Paq-like model mixing could make a huge difference, but is beyond the scope of this project.
+When sacrificing random access reading, simplicity or the static nature of this algorithm, improvements of compression ratios are easy to make. Replacing Huffman coding with more entropy optimal encoders, using context aware predictors or even Paq-like model mixing could make a huge difference, but is beyond the scope of this project.  
 Better static Huffman trees can be found when using more time costly algorithms such as genetic algorithms and deep recursive searches. Both topics are high on the wish list to be researched but will hurt practical use because of the increase in the cost of encoding time.
 
 ### Conclusion
-For me personally it came as a surprise that it was possible to create a program that encodes structured information and maintaining average scoring compression ratios, while using a static Huffman tree.
-For now the time cost of encoding is impractical and needs further research. Also additional, but probably small, improvements can be made on the stage 1 algorithm to find a more optimal Huffman tree.
+For me personally it came as a surprise that it was possible to create a program that encodes structured information and maintaining average scoring compression ratios, while using a static Huffman tree.  
+For now the time cost of encoding is impractical and needs further research. Also additional, but probably small, improvements can be made on the stage 1 algorithm to find a more optimal Huffman tree.  
 It would not surprise me if some of the research done here end up in other algorithms. For example the LZ77 family of encoders would benefit from the structures found by the stage 1 algorithm. This way it must be possible to find a lower amount of length-distance pairs (that are also more alike) to represent a piece of data.
 
 Kind regards,
