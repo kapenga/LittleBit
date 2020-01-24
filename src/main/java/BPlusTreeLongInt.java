@@ -15,6 +15,11 @@ class BPlusTreeLongInt {
         root = new LeafNode();
     }
 
+    int get(long key)
+    {
+        return root.get(key);
+    }
+
     private void insert(long key, int value) {
         if (root.isOverflow()) {
             Node sibling = root.split();

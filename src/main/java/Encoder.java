@@ -5,6 +5,7 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
  */
 
 import java.io.IOException;
+import java.rmi.server.ExportException;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -16,15 +17,15 @@ class Encoder {
         int endOfLineSymbol = symbolIndex++;
         long[] symbolReferences = new long[1 << 20];
         int[] symbolFrequencies = new int[1 << 20];
+        int[] symbolSizes = new int[1 << 20];
         int[][] data = new int[input.length][];
         int[] lengths = new int[input.length];
-
         //The minCount can be used to have a speed/compression ratio trade off dial. MinCount should be at least 4 according to tests. 4 or 5 is optimal in most cases.
-        final int MinCount = 4;
+        int MinCount = 4;
+
         int totalLength = 0;
 
         Instant start = Instant.now();
-
 
         //First cycle
         //Convert bytes to symbols
@@ -35,6 +36,7 @@ class Encoder {
                 int b = input[i][x] & 0xFF;
                 if (references[b] == 0) {
                     symbolReferences[symbolIndex] = b;
+                    symbolSizes[symbolIndex] = 1;
                     references[b] = symbolIndex++;
                 }
                 data[i][x] = references[b];
@@ -50,22 +52,23 @@ class Encoder {
         //Symbol combinations are registered as a long, combining the 2 (32 bit) int symbols to one (64 bit) long.
         BPlusTreeLongInt set = new BPlusTreeLongInt();
 
-        for (int i = 0; i < input.length; i++) {
-            int s2 = 0;
+        for (int i = 0; i < data.length; i++) {
             int s1 = data[i][0];
             int x = 1;
             symbolFrequencies[s1]++;
             while (x < lengths[i]) {
                 int s = data[i][x];
                 symbolFrequencies[s]++;
-                if (s == s1 && s == s2) {
-                    s2 = 0;
-                } else {
-                    long newNode = ((long) s1 << 32) + s;
+                if (s1 > 0 || (s != -s1)) {
+                    long newNode = ((long) Math.abs(s1) << 32) + s;
                     set.addTo(newNode, 1);
-                    s2 = s1;
-                    s1 = s;
                 }
+                if (s1 == s) {
+                    s = -s;
+                    data[i][x] = s;
+                }
+                s1 = s;
+
                 x++;
             }
         }
@@ -83,7 +86,7 @@ class Encoder {
                 break;
 
             long bestNode = Long.MIN_VALUE;
-            double bestGain = 0;
+            double bestScore = 0;
             int bestFrequency = 0;
             do {
                 long node = set.iterationKey();
@@ -100,30 +103,29 @@ class Encoder {
                 double min = Math.min(ratio1, ratio2);
 
                 //A combination of frequency (count) in combination with the ratio of both parent symbols seems to lead to the best results.
-                //The '0.2 -  (1.0 - min) - (1.0 - max);' part is to penalise low gains. The result is that the compressor recognises incompressible data and cuts of sooner.
+                //The '- MinCount' part is to penalise low gains. The result is that the compressor recognises incompressible data and cuts of sooner.
                 //The usages of the ratio's results in better compression because it helps the algorithm to steer in a direction where there are better future options of combining symbols.
                 //It's like a gamble of the best direction in a breadth first search because traversing every possible path would require too much time.
-                double gain = (frequency * ((max * 3) + min)) - 0.2 - (1.0 - min) - (1.0 - max);
+                double score = frequency * (0.2 + (max + max + max + min)) - MinCount ;
 
-                if (gain > bestGain || (gain >= bestGain && frequency > bestFrequency)) {
+                if (score > bestScore || (score >= bestScore && frequency > bestFrequency)) {
                     bestNode = node;
-                    bestGain = gain;
+                    bestScore = score;
                     bestFrequency = frequency;
                 }
             } while (set.nextIteration());
 
             //If there is no predicted gain: jump out of the loop.
-            if(bestGain <= 0)
+            if(bestScore <= 0)
                 break;
 
             //Now we have to fuse the 2 best symbols to a new one.
             int bestSymbol1 = (int)(bestNode >> 32);
             int bestSymbol2 = (int)(bestNode);
-            symbolReferences[symbolIndex] = bestNode;
-            symbolFrequencies[symbolIndex] += bestFrequency;
 
             int newSymbol = symbolIndex++;
 
+            symbolReferences[newSymbol] = bestNode;
             //This loop does several things simultaneously.
             // 1. It fuses the 2 'best' symbols together to a new one.
             // 2. It removes the empty gaps left behind by the second symbol that is converted to a new one. (The new symbol is located on the first sumbol)
@@ -135,21 +137,35 @@ class Encoder {
                 int maxLength = lengths[i]-1;
                 while(x < maxLength) {
                     int symbol = data[i][x++];
-                    if (symbol == bestSymbol1 && data[i][x] == bestSymbol2) {
-                        if(moveTo > 0)
-                        {
-                            long oldSymbol = data[i][moveTo-1];
-                            oldSymbol <<= 32;
-                            set.addTo(oldSymbol + symbol, -1);
-                            set.addTo(oldSymbol + newSymbol, 1);
+                    if (Math.abs(symbol) == bestSymbol1) {
+                        int symbol2 = data[i][x];
+                        if (Math.abs(symbol2) == bestSymbol2) {
+                            boolean shouldInverse = false;
+                            if (moveTo > 0) {
+                                long oldSymbol = data[i][moveTo - 1];
+                                if (oldSymbol == newSymbol)
+                                    shouldInverse = true;
+                                if (!(oldSymbol < 0 && -oldSymbol == symbol)) {
+                                    set.addTo((Math.abs(oldSymbol) << 32) + bestSymbol1, -1);
+                                }
+                                if (!(oldSymbol < 0 && -oldSymbol == newSymbol)) {
+                                    set.addTo((Math.abs(oldSymbol) << 32) + newSymbol, 1);
+                                }
+                            }
+                            if (++x <= maxLength) {
+                                long oldSymbol = data[i][x];
+
+                                if (!(symbol2 < 0 && -symbol2 == oldSymbol)) {
+                                    set.addTo(Math.abs(oldSymbol) + ((long) bestSymbol2 << 32), -1);
+                                }
+                                if(oldSymbol < 0)
+                                    data[i][x] = -data[i][x];
+                                set.addTo(Math.abs(oldSymbol) + ((long) newSymbol << 32), 1);
+                            }
+                            data[i][moveTo++] = shouldInverse ? -newSymbol : newSymbol;
+                        } else {
+                            data[i][moveTo++] = symbol;
                         }
-                        if(++x <= maxLength)
-                        {
-                            long oldSymbol =  data[i][x];
-                            set.addTo(oldSymbol + ((long) bestSymbol2 << 32), -1);
-                            set.addTo(oldSymbol + ((long) newSymbol << 32), 1);
-                        }
-                        data[i][moveTo++] = newSymbol;
                     } else {
                         data[i][moveTo++] = symbol;
                     }
@@ -162,6 +178,9 @@ class Encoder {
             }
             symbolFrequencies[bestSymbol1] -= div;
             symbolFrequencies[bestSymbol2] -= div;
+            symbolFrequencies[newSymbol] += div;
+            symbolSizes[newSymbol] = symbolSizes[bestSymbol1] + symbolSizes[bestSymbol2];
+
             totalLength -= div;
 
             //The best node is used and removed from the pool of options.
@@ -169,8 +188,9 @@ class Encoder {
 
             //This part is to give some information about the process but only once every second.
             Instant current = Instant.now();
-            if(Duration.between(start, current).getSeconds() > 0) {
-                System.out.println(symbolIndex + ": " + " best node: " + bestSymbol1 + "/" + bestSymbol2 + " gain: " + Math.round(bestGain) + " freq: " + bestFrequency + " left: " + totalLength);
+            if(Duration.between(start, current).getSeconds() > 0)
+            {
+                System.out.println(newSymbol + ": " + " best node: " + bestSymbol1 + "/" + bestSymbol2 + " gain: " + Math.round(bestScore) + " freq: " + bestFrequency + " left: " + totalLength);
                 start = current;
             }
         }
@@ -185,7 +205,7 @@ class Encoder {
         //Register the counts.
         for(int i = 0; i < data.length; i++)
             for(int x = 0; x < lengths[i]; x++)
-                nodes[data[i][x]].frequency++;
+                nodes[Math.abs(data[i][x])].frequency++;
         nodes[endOfLineSymbol].symbol = -1;
 
         //Stupid piece of code that should be removed. The nodes array starts from index 1. This code moves everything so things start at index 0.
@@ -202,7 +222,8 @@ class Encoder {
         //And now the nodes.
         for(int i = 0; i < data.length; i++)
             for(int x = 0; x < lengths[i]; x++)
-                nodes[data[i][x]].bitSet.write(dataWriter);
+                nodes[Math.abs(data[i][x])].bitSet.write(dataWriter);
     }
+
 
 }

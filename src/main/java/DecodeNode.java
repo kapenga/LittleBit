@@ -37,7 +37,7 @@ class DecodeNode {
     }
 
     DecodeNode get(BitStreamReader reader) throws Exception {
-        if(a == null)//is leave
+        if(a == null)//is leaf
             return this;
         int bit = reader.nextBit();
         if(bit == 0)
@@ -47,7 +47,7 @@ class DecodeNode {
 
     void addToDictionary(HashMap<BitSet, DecodeNode> dictionary)
     {
-        if(a == null)//is leave
+        if(a == null)//is leaf
         {
             dictionary.put(bits, this);
         }
