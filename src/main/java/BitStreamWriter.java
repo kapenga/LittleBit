@@ -9,7 +9,7 @@ import java.io.OutputStream;
 
 class BitStreamWriter {
     private byte[] buffer;
-    private final int bufferSize = 1 << 18;
+    private final int bufferSize = 1 << 24;
     private int offset;
 
     private long length;
@@ -28,7 +28,7 @@ class BitStreamWriter {
         if(bit)
             buffer[offset>>3] |= 1 << (offset & 7);
         offset++;
-        if(offset >> 3 == bufferSize)
+        if(offset == (bufferSize << 3))
         {
             stream.write (buffer);
             offset = 0;
