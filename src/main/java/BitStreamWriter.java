@@ -6,6 +6,7 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 
 class BitStreamWriter {
     private byte[] buffer;
@@ -31,6 +32,7 @@ class BitStreamWriter {
         if(offset == (bufferSize << 3))
         {
             stream.write (buffer);
+            Arrays.fill(buffer, (byte)0);
             offset = 0;
         }
     }

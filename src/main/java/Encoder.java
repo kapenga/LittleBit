@@ -11,6 +11,8 @@ import java.time.Instant;
 
 class Encoder {
 
+
+
     //TreeWriter and dataWriter can be the same object. It just gives the option to save the tree and the data separately.
     static void Process(byte[][] input, BitStreamWriter treeWriter, BitStreamWriter dataWriter) throws IOException {
         int symbolIndex = 1;

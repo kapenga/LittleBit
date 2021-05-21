@@ -30,11 +30,19 @@ public class Main {
             Instant start = Instant.now();
             if (encode) {
                 try {
+                    System.out.print("Reading file: " + file.toPath());
                     byte[] data = Files.readAllBytes(file.toPath());
+                    System.out.println(" done.");
                     FileOutputStream fos = new FileOutputStream(args[2]);
                     BitStreamWriter writer = new BitStreamWriter(fos);
 
-                    Encoder.Process(new byte[][]{data}, writer, writer);
+                    System.out.print("Find symbols...");
+                    Encoder2 e = Encoder2.bytesToSymbols(data);
+                    System.out.println(" done.");
+                    System.out.print("Write encoded data...");
+                    e.write(writer);
+                    System.out.println(" done.");
+
                     writer.close();
                     fos.close();
                     System.out.println("Total size:\t\t\t" + writer.length() + " bytes");

@@ -1,4 +1,4 @@
-# LittleBit 0.1
+# LittleBit 0.2
 Author: Wybren Kapenga
 
 ### Features:
@@ -9,9 +9,23 @@ Author: Wybren Kapenga
 - Static model
 
 ### Current state and license:
-The current version of LittleBit 0.1 should be considered an alpha version and a tech demo.  
+The current version of LittleBit 0.2 should be considered an alpha version and a tech demo.
 Licensed under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)  
 Source code can be found on https://github.com/kapenga/LittleBit/  
+
+### Updates
+## 0.2
+Introduced a new encoder that is around 300 times faster for files above 20 megabyte. This code can be found in encoder2.java.
+The speed up is accomplished by keeping track of counts and positions. This increases the memory consumption from around 6x the input file to around 21x the input file.
+Also the compression ratio suffers a bit because we simply take the biggest count instead of a slightly more intelligent approach.
+But the result is a practically usable algorithm instead of a nice theoretical idea.
+Decoding is still backwards compatible.
+
+Generating the creation of large Huffman trees is sped up too in this version.
+A small bug in the BitStreamWriter is fixed.
+
+## 0.1
+First original version. Still available in Encoder.java.
 
 ### Introduction
 The idea for a new compression technique for databases was born while designing a new database engine. A key requirement is that it should be able to decode the data on a table field level while maintaining a good compression ratio. The initial question was: Is it possible to get good compression ratios while using Huffman encoding? It would require a static Huffman tree and the sum of the size of the tree and the encoded data must be competitive with other compression techniques. After creating a demo it is shown that this is indeed possible but at the cost of time to find an appropriate static Huffman tree.
@@ -27,7 +41,7 @@ LittleBit was developed without prior knowledge of other programs with similar a
 The program encodes in 2 stages. During the first stage the program tries to find an optimal static Huffman tree for the input. Unlike most classical static Huffman trees the leafs can represent one or more bytes. The tree is saved as a canonical Huffman tree. Instead of writing the bytes, the multi-byte leafs have a reference to the 2 ‘parent’ leafs. This can be multiple layers deep.
 Finding the optimal static Huffman tree is a NP-hard task. A (sort of) lexicographic breadth first approach (without backtracking) is developed to find a fair but sub-optimal solution in a time span that is not near infinite. Or in words I would use: “It’s a one way trip using educated guesses that seems to work okay’ish somehow.”
 A ‘perfect’ version of finding the optimal outcome in this NP-hard task can be made using a recursive full search, but the calculation time for even small files would be almost infinite.
-Memory usage during the first stage is between 5 or 6 times the size of the input.
+Memory usage during the first stage is between 20 or 21 times the size of the input.
 In the second and last stage the data is encoded using the canonical Huffman tree that is found in stage1.
 The Huffman tree can be stored separately of the encoded data.
 ### Decoding
@@ -38,27 +52,27 @@ The static Huffman tree can be shared among multiple cores (or even machines) to
 The data can be decoded on leaf-level if the bit position of the start of the leaf is known. A use case can be a database index referencing the bit positions of the compressed fields. Using the static Huffman tree, the database engine (or client!) can decode the information that is stored in a particular field.
 Another use case for random access or multi-core reading is when the data is stored in fixed size blocks of for example 1 kilobyte. This can be useful for games and other software that uses a large amount of read only data that needs to be randomly accessed.
 
-### Results
+### Results using encoder version 2
 |File|Size|Huffman tree|Data|Total|Encoding time|
 |----|----:|------------:|----:|-----:|-------------:|
-|acrord32.exe|3.870.784|146.082|1.870.998|2.017.080|338 s|
-|Book1|768.771|22.975|234.765|257.740|10 s|
-|Kingjames.txt|4.452.519|79.312|1.023.689|1.103.001|107 s|
-|Fp.log|20.617.071|159.470|640.316|799.786|194 s|
-|Enwik8|100.000.000|1.290.337|25.357.414|26.647.751|30604 s|
+|acrord32.exe|3.870.784|211.279|1.821.209|2.032.488|4 s|
+|Book1|768.771|29.517|242.725|272.242|1 s|
+|Kingjames.txt|4.452.519|115.612|1.010.188|1.125.800|3 s|
+|Fp.log|20.617.071|152.889|660.066|812.955|8 s|
+|Enwik8|100.000.000|2.226.313|24.529.615|26.755.928|86 s|
 
 These tests are done on a 2017 model of a Macbook Pro and the time measurements should be considered only as an indication. Encoding times are for 99.9% the stage 1 model searching.
 Decoding times are not mentioned because the source code is written in object oriented Java and decoding should be magnitudes faster in c(++) with a proper lookup table.
 
-|File|Size|LittleBit 0.1|BZip2|LZMA2|Deflate|
+|File|Size|LittleBit 0.2|BZip2|LZMA2|Deflate|
 |----|---:|------------:|----:|----:|------:|
-|acrord32.exe|3.870.784|2.017.080|1.699.876|1.288.887|1.680.482|
-|Book1|768.771|257.740|232.438|261.111|300.819|
-|Kingjames.txt|4.452.519|1.103.001|1.001.852|1.056.883|1.325.449|
-|Fp.log|20.617.071|799.786|724.085|927.511|1.406.955|
-|Enwik8|100.000.000|26.647.751|29.011.932|26.080.305|35.194.836|
+|acrord32.exe|3.870.784|2.032.488|1.699.876|1.288.887|1.680.482|
+|Book1|768.771|272.242|232.438|261.111|300.819|
+|Kingjames.txt|4.452.519|1.125.800|1.001.852|1.056.883|1.325.449|
+|Fp.log|20.617.071|812.955|724.085|927.511|1.406.955|
+|Enwik8|100.000.000|26.755.928|29.011.932|26.080.305|35.194.836|
 
-LittleBit 0.1 compared to other algorithms. The encoding is done using 7zip application and BZip2, LZMA2 and Deflate are configured with the ‘normal’ setting.
+LittleBit 0.2 compared to other algorithms. The encoding is done using 7zip application and BZip2, LZMA2 and Deflate are configured with the ‘normal’ setting.
 
 As shown the algorithm works well on natural languages or XML like structures. The results are comparable to commonly used compression algorithms. The algorithm starts to lag behind when there is no solution found to create a small library that effectively represents the structure of the data. This is especially shown in case of executable files.
 However this algorithm is originally designed for usage in databases. When used on columns containing natural text or repeating (enumeration) values, it should be able to outperform the currently available techniques at the cost of the time needed to find a model that effectively maps the structure of the data. [Todo: insert database compression comparisons]
@@ -123,6 +137,3 @@ Better static Huffman trees can be found when using more time costly algorithms 
 For me personally it came as a surprise that it was possible to create a program that encodes structured information and maintaining average scoring compression ratios, while using a static Huffman tree.  
 For now the time cost of encoding is impractical and needs further research. Also additional, but probably small, improvements can be made on the stage 1 algorithm to find a more optimal Huffman tree.  
 It would not surprise me if some of the research done here end up in other algorithms. For example the LZ77 family of encoders would benefit from the structures found by the stage 1 algorithm. This way it must be possible to find a lower amount of length-distance pairs (that are also more alike) to represent a piece of data.
-
-Kind regards,
-Wybren Kapenga

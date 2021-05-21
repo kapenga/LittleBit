@@ -31,33 +31,40 @@ class HuffmanNode implements Comparable<HuffmanNode> {
 
     static HuffmanNode method2(HuffmanNode[] inputs)
     {
-        ArrayList<HuffmanNode> result = new ArrayList<>(Arrays.asList(inputs));
-
-        Collections.sort(result);
-
-        while(result.size() > 1)
-        {
-            //Pick the 2 smallest nodes
-            HuffmanNode b = result.remove(result.size()-1);
-            HuffmanNode a = result.remove(result.size()-1);
-            HuffmanNode c = new HuffmanNode(-3, a, b);
-            c.frequency = a.frequency + b.frequency;
-            boolean inserted = false;
-            for(int i = result.size()-1; i > -1; i--)
-            {
-                HuffmanNode other = result.get(i);
-                if(other.frequency > c.frequency)
-                {
-                    result.add(i+1, c);
-                    inserted = true;
-                    break;
-                }
-            }
-            if(!inserted)
-                result.add(0, c);
+        ArrayList<HuffmanNode> nodes = new ArrayList<>();
+        BPlusTreeFSByteArray sortedList = new BPlusTreeFSByteArray(8);
+        byte[] key = new byte[8];
+        for(int i = 0; i < inputs.length; i++) {
+            HuffmanNode node = inputs[i];
+            nodes.add(node);
+            BPlusTreeFSByteArray.write(key, node.frequency, 0);
+            BPlusTreeFSByteArray.write(key, i, 4);
+            sortedList.insert(key);
         }
 
-        return result.get(0);
+        while(sortedList.size() > 1)
+        {
+            key = sortedList.removeFirst();
+            int index = BPlusTreeFSByteArray.readInt(key, 4);
+            //Pick the 2 smallest nodes
+            HuffmanNode a = nodes.get(index);
+            key = sortedList.removeFirst();
+            index = BPlusTreeFSByteArray.readInt(key, 4);
+            HuffmanNode b = nodes.get(index);
+            HuffmanNode c = new HuffmanNode(-3, a, b);
+            c.frequency = a.frequency + b.frequency;
+
+            index = nodes.size();
+            nodes.add(c);
+            BPlusTreeFSByteArray.write(key, c.frequency, 0);
+            BPlusTreeFSByteArray.write(key, index, 4);
+            sortedList.insert(key);
+        }
+
+
+        key = sortedList.removeFirst();
+        int index = BPlusTreeFSByteArray.readInt(key, 4);
+        return nodes.get(index);
     }
 
 
