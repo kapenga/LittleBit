@@ -1,4 +1,4 @@
-# LittleBit 0.2
+# LittleBit 0.3
 Author: Wybren Kapenga
 
 ### Features:
@@ -9,11 +9,15 @@ Author: Wybren Kapenga
 - Static model
 
 ### Current state and license:
-The current version of LittleBit 0.2 should be considered an alpha version and a tech demo.
+The current version of LittleBit 0.3 should be considered an alpha version and a tech demo.
 Licensed under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)  
 Source code can be found on https://github.com/kapenga/LittleBit/  
 
 ### Updates
+## 0.3
+Significant improvements in encoding and decoding speeds.
+A few small bug fixes.
+
 ## 0.2
 Introduced a new encoder that is around 300 times faster for files above 20 megabyte. This code can be found in encoder2.java.
 The speed up is accomplished by keeping track of counts and positions. This increases the memory consumption from around 6x the input file to around 21x the input file.
@@ -55,11 +59,11 @@ Another use case for random access or multi-core reading is when the data is sto
 ### Results using encoder version 2
 |File|Size|Huffman tree|Data|Total|Encoding time|
 |----|----:|------------:|----:|-----:|-------------:|
-|acrord32.exe|3.870.784|211.279|1.821.209|2.032.488|4 s|
+|acrord32.exe|3.870.784|211.279|1.821.209|2.032.488|2 s|
 |Book1|768.771|29.517|242.725|272.242|1 s|
 |Kingjames.txt|4.452.519|115.612|1.010.188|1.125.800|3 s|
-|Fp.log|20.617.071|152.889|660.066|812.955|8 s|
-|Enwik8|100.000.000|2.226.313|24.529.615|26.755.928|86 s|
+|Fp.log|20.617.071|152.889|660.066|812.955|5 s|
+|Enwik8|100.000.000|2.226.313|24.529.615|26.755.928|47 s|
 
 These tests are done on a 2017 model of a Macbook Pro and the time measurements should be considered only as an indication. Encoding times are for 99.9% the stage 1 model searching.
 Decoding times are not mentioned because the source code is written in object oriented Java and decoding should be magnitudes faster in c(++) with a proper lookup table.
