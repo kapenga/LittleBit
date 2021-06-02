@@ -4,8 +4,6 @@ Written by Wybren Kapenga
 Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
  */
 
-import java.io.IOException;
-
 class BitSet {
 
     private long value;
@@ -37,6 +35,11 @@ class BitSet {
         value <<= 1;
     }
 
+    int getLength()
+    {
+        return length;
+    }
+
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
@@ -50,11 +53,6 @@ class BitSet {
     long getValue()
     {
         return value;
-    }
-
-    void write(BitStreamWriter writer) throws IOException {
-        for(int i = 0; i < length; i++)
-            writer.add(((value >> i) & 1) > 0);
     }
 
     static BitSet read(BitStreamReader reader, int bits) throws Exception {

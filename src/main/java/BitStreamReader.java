@@ -14,7 +14,7 @@ class BitStreamReader {
     private int bitPosition;
 
     BitStreamReader(InputStream stream) {
-        this.stream = stream;//new FileInputStream(filename);
+        this.stream = stream;
         int bufferSize = 1 << 20;
         buffer = new byte[bufferSize];
         bufferLength = -1;

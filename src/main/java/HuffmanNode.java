@@ -5,10 +5,8 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
  */
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 
-class HuffmanNode implements Comparable<HuffmanNode> {
+class HuffmanNode {
     int symbol;
     HuffmanNode a;
     HuffmanNode b;
@@ -67,8 +65,6 @@ class HuffmanNode implements Comparable<HuffmanNode> {
         return nodes.get(index);
     }
 
-
-
     private boolean isLeaf()
     {
         return symbol > -3;
@@ -84,10 +80,6 @@ class HuffmanNode implements Comparable<HuffmanNode> {
             a.getDepths(depths, currentDepth+1);
             b.getDepths(depths, currentDepth+1);
         }
-    }
-
-    public int compareTo(HuffmanNode o) {
-        return -Integer.compare(frequency, o.frequency);
     }
 
     @Override

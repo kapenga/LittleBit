@@ -1,231 +1,341 @@
-/*
-Written by Wybren Kapenga
-
-Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
- */
-
 import java.io.IOException;
-import java.rmi.server.ExportException;
-import java.time.Duration;
-import java.time.Instant;
+import java.util.ArrayList;
 
 class Encoder {
+    private int endOfLineSymbol = 0;
+    private int symbolIndex = 1;
+    private int[] symbolReferenceA = new int[MAXSYMBOLCOUNT];
+    private int[] symbolReferenceB = new int[MAXSYMBOLCOUNT];
+    private int[] symbolCount = new int[MAXSYMBOLCOUNT];
+    private int[] symbolSize = new int[MAXSYMBOLCOUNT];
 
+    private int[] symbols;
 
+    private final static int MINIMALCOUNT = 4;
+    private final static int MAXSYMBOLCOUNT = 1 << 24;
 
-    //TreeWriter and dataWriter can be the same object. It just gives the option to save the tree and the data separately.
-    static void Process(byte[][] input, BitStreamWriter treeWriter, BitStreamWriter dataWriter) throws IOException {
-        int symbolIndex = 1;
-        int endOfLineSymbol = symbolIndex++;
-        long[] symbolReferences = new long[1 << 20];
-        int[] symbolFrequencies = new int[1 << 20];
-        int[] symbolSizes = new int[1 << 20];
-        int[][] data = new int[input.length][];
-        int[] lengths = new int[input.length];
-        //The minCount can be used to have a speed/compression ratio trade off dial. MinCount should be at least 4 according to tests. 4 or 5 is optimal in most cases.
-        int MinCount = 4;
+    private void symbolize(int[] symbols) {
+        /*
+            1. Find most common symbol pair
 
-        int totalLength = 0;
+            2. Make it a new symbol
+            3. Repeat
+         */
+        HashTable fromSymbolToSymbol = new HashTable(DecodeNode.bitSize(symbols.length)-2);
+        BPlusTreeFSByteArray scoreList = new BPlusTreeFSByteArray(12);
+        ArrayList<CNode> touched = new ArrayList<>();
+        this.symbols = symbols;
 
-        Instant start = Instant.now();
+        int[] offsetsLeft = new int[symbols.length];
+        int[] offsetsRight = new int[symbols.length];
 
-        //First cycle
-        //Convert bytes to symbols
-        int[] references = new int[256];
-        for (int i = 0; i < input.length; i++) {
-            data[i] = new int[input[i].length + 1];
-            for (int x = input[i].length - 1; x > -1; x--) {
-                int b = input[i][x] & 0xFF;
-                if (references[b] == 0) {
-                    symbolReferences[symbolIndex] = b;
-                    symbolSizes[symbolIndex] = 1;
-                    references[b] = symbolIndex++;
-                }
-                data[i][x] = references[b];
-            }
-            totalLength+= data[i].length;
-            data[i][input[i].length] = endOfLineSymbol;
-            lengths[i] = data[i].length;
-        }
-        int startSymbols = symbolIndex;
-
-        //Find the count for every combination of symbols that occur next to each other
-        //The B+ Tree is surprising effective compared to hashing.
-        //Symbol combinations are registered as a long, combining the 2 (32 bit) int symbols to one (64 bit) long.
-        BPlusTreeLongInt set = new BPlusTreeLongInt();
-
-        for (int i = 0; i < data.length; i++) {
-            int s1 = data[i][0];
-            int x = 1;
-            symbolFrequencies[s1]++;
-            while (x < lengths[i]) {
-                int s = data[i][x];
-                symbolFrequencies[s]++;
-                if (s1 > 0 || (s != -s1)) {
-                    long newNode = ((long) Math.abs(s1) << 32) + s;
-                    set.addTo(newNode, 1);
-                }
-                if (s1 == s) {
-                    s = -s;
-                    data[i][x] = s;
-                }
-                s1 = s;
-
-                x++;
-            }
+        for (int i = 0; i < offsetsLeft.length; i++) {
+            offsetsLeft[i] = -1;
+            offsetsRight[i] = -1;
         }
 
-        //Now we enter the main loop.
-        //Jump out if the maximum number of symbols is reached.
-        while(symbolIndex < symbolReferences.length) {
+        long lastSymbol = -1;
+        for (int i = 0; i < symbols.length - 1; i++) {
+            symbolCount[symbols[i]]++;
+            long currentSymbol = ((long) symbols[i] << 32) + symbols[i + 1];
 
-            //Remove the symbol combinations that will not be useful for further analysis/usage.
-            //This is basically a cutoff point in a NP-problem.
-            set.removeValuesBelow(MinCount);
+            addSymbol(symbols[i], symbols[i + 1], i, currentSymbol != lastSymbol, true, true, offsetsLeft, offsetsRight, fromSymbolToSymbol, touched);
 
-            //Next phase is finding the combination of symbols that has the best properties to be fused together to form a new symbol.
-            if(!set.prepareIteration())
+            if (currentSymbol == lastSymbol)
+                lastSymbol = -1;
+            else
+                lastSymbol = currentSymbol;
+        }
+        symbolCount[symbols[symbols.length - 1]]++;
+
+
+        while (true) {
+            processTouched(offsetsLeft, offsetsRight, fromSymbolToSymbol, touched, scoreList);
+
+            if (scoreList.size() < 1) {
+                System.out.println(" done.");
+                System.out.println("Number of symbols: " + symbolIndex);
+                System.out.println("HashTable fill ratio: " + (Math.round(fromSymbolToSymbol.getFillRatio() * 1000.0) / 1000.0));
                 break;
+            }
 
-            long bestNode = Long.MIN_VALUE;
-            double bestScore = 0;
-            int bestFrequency = 0;
-            do {
-                long node = set.iterationKey();
-                int frequency = set.iterationValue();
-                int symbol1 = (int) (node >> 32);
-                int symbol2 = (int) (node);
+            byte[] lastElement = scoreList.removeLast();
+            long key = BPlusTreeFSByteArray.readLong(lastElement, 4);
 
-                int symbol1Frequency = symbolFrequencies[symbol1];
-                int symbol2Frequency = symbolFrequencies[symbol2];
+            CNode winner = (CNode)fromSymbolToSymbol.get(key);
 
-                double ratio1 = (double) frequency / symbol1Frequency;
-                double ratio2 = (double) frequency / symbol2Frequency;
-                double max = Math.max(ratio1, ratio2);
-                double min = Math.min(ratio1, ratio2);
-
-                //A combination of frequency (count) in combination with the ratio of both parent symbols seems to lead to the best results.
-                //The '- MinCount' part is to penalise low gains. The result is that the compressor recognises incompressible data and cuts of sooner.
-                //The usages of the ratio's results in better compression because it helps the algorithm to steer in a direction where there are better future options of combining symbols.
-                //It's like a gamble of the best direction in a breadth first search because traversing every possible path would require too much time.
-                double score = frequency * (0.2 + (max + max + max + min)) - MinCount ;
-
-                if (score > bestScore || (score >= bestScore && frequency > bestFrequency)) {
-                    bestNode = node;
-                    bestScore = score;
-                    bestFrequency = frequency;
-                }
-            } while (set.nextIteration());
-
-            //If there is no predicted gain: jump out of the loop.
-            if(bestScore <= 0)
-                break;
-
-            //Now we have to fuse the 2 best symbols to a new one.
-            int bestSymbol1 = (int)(bestNode >> 32);
-            int bestSymbol2 = (int)(bestNode);
-
+            symbolReferenceA[symbolIndex] = winner.symbolA;
+            symbolReferenceB[symbolIndex] = winner.symbolB;
+            symbolSize[symbolIndex] = symbolSize[winner.symbolA] + symbolSize[winner.symbolB];
             int newSymbol = symbolIndex++;
+            fromSymbolToSymbol.delete(winner);
 
-            symbolReferences[newSymbol] = bestNode;
-            //This loop does several things simultaneously.
-            // 1. It fuses the 2 'best' symbols together to a new one.
-            // 2. It removes the empty gaps left behind by the second symbol that is converted to a new one. (The new symbol is located on the first sumbol)
-            // 3. It recounts the new situation.
-            int div = 0;
-            for (int i = 0; i < data.length; i++) {
-                int moveTo = 0;
-                int x = 0;
-                int maxLength = lengths[i]-1;
-                while(x < maxLength) {
-                    int symbol = data[i][x++];
-                    if (Math.abs(symbol) == bestSymbol1) {
-                        int symbol2 = data[i][x];
-                        if (Math.abs(symbol2) == bestSymbol2) {
-                            boolean shouldInverse = false;
-                            if (moveTo > 0) {
-                                long oldSymbol = data[i][moveTo - 1];
-                                if (oldSymbol == newSymbol)
-                                    shouldInverse = true;
-                                if (!(oldSymbol < 0 && -oldSymbol == symbol)) {
-                                    set.addTo((Math.abs(oldSymbol) << 32) + bestSymbol1, -1);
-                                }
-                                if (!(oldSymbol < 0 && -oldSymbol == newSymbol)) {
-                                    set.addTo((Math.abs(oldSymbol) << 32) + newSymbol, 1);
-                                }
-                            }
-                            if (++x <= maxLength) {
-                                long oldSymbol = data[i][x];
+            int nextOffset = symbolSize[winner.symbolA];
 
-                                if (!(symbol2 < 0 && -symbol2 == oldSymbol)) {
-                                    set.addTo(Math.abs(oldSymbol) + ((long) bestSymbol2 << 32), -1);
-                                }
-                                if(oldSymbol < 0)
-                                    data[i][x] = -data[i][x];
-                                set.addTo(Math.abs(oldSymbol) + ((long) newSymbol << 32), 1);
-                            }
-                            data[i][moveTo++] = shouldInverse ? -newSymbol : newSymbol;
-                        } else {
-                            data[i][moveTo++] = symbol;
+            int index = winner.firstIndex;
+            long lastTriggerSymbol = -1;
+            while (index > -1) {
+                int futureIndex = offsetsRight[index];
+                if (symbols[index] > -1) {
+
+                    int previousIndex = findPreviousSymbol(index, symbols);
+                    if (previousIndex > -1) {
+                        lastSymbol = (((long) symbols[previousIndex]) << 32) + symbols[index];
+                        removeSymbol(lastSymbol, previousIndex, offsetsLeft, offsetsRight, fromSymbolToSymbol, touched);
+                    }
+
+                    int nextIndex = index + nextOffset;
+
+                    int nextNextIndex = findNextSymbol(nextIndex, symbols);
+                    if (nextNextIndex > -1) {
+                        lastSymbol = (((long) winner.symbolB) << 32) + symbols[nextNextIndex];
+
+                        if (lastSymbol != key) {
+                            removeSymbol(lastSymbol, nextIndex, offsetsLeft, offsetsRight, fromSymbolToSymbol, touched);
                         }
-                    } else {
-                        data[i][moveTo++] = symbol;
+                    }
+
+                    winner.remove(offsetsLeft, offsetsRight, index);
+                    symbolCount[winner.symbolA]--;
+                    symbolCount[winner.symbolB]--;
+                    symbolCount[newSymbol]++;
+                    symbols[index] = newSymbol;
+                    symbols[nextIndex] = -1;
+
+                    if (previousIndex > -1) {
+                        long previousSymbol = (((long) symbols[previousIndex]) << 32) + newSymbol;
+                        addSymbol(symbols[previousIndex], newSymbol, previousIndex, previousSymbol != lastTriggerSymbol, false, true, offsetsLeft, offsetsRight, fromSymbolToSymbol, touched);
+
+                        if (previousSymbol != lastTriggerSymbol && symbols[previousIndex] == newSymbol)
+                            lastTriggerSymbol = previousSymbol;
+                        else
+                            lastTriggerSymbol = -1;
+                    }
+
+                    if (nextNextIndex < symbols.length) {
+                        addSymbol(newSymbol, symbols[nextNextIndex], index, true, true, false, offsetsLeft, offsetsRight, fromSymbolToSymbol, touched);
                     }
                 }
-                if(x <= maxLength) {
-                    data[i][moveTo++] = data[i][x];
-                }
-                div += lengths[i] - moveTo;
-                lengths[i] = moveTo;
+
+                index = futureIndex;
             }
-            symbolFrequencies[bestSymbol1] -= div;
-            symbolFrequencies[bestSymbol2] -= div;
-            symbolFrequencies[newSymbol] += div;
-            symbolSizes[newSymbol] = symbolSizes[bestSymbol1] + symbolSizes[bestSymbol2];
 
-            totalLength -= div;
-
-            //The best node is used and removed from the pool of options.
-            set.delete(bestNode);
-
-            //This part is to give some information about the process but only once every second.
-            Instant current = Instant.now();
-            if(Duration.between(start, current).getSeconds() > 0)
-            {
-                System.out.println(newSymbol + ": " + " best node: " + bestSymbol1 + "/" + bestSymbol2 + " gain: " + Math.round(bestScore) + " freq: " + bestFrequency + " left: " + totalLength);
-                start = current;
-            }
         }
 
-        System.out.println("Symbols to encode:\t" + totalLength);
+    }
 
+    void writeHuffman(BitStreamWriter writer) throws IOException {
         //Convert the symbols and their parents to Huffman nodes.
         HuffmanNode[] nodes = new HuffmanNode[symbolIndex];
-        for(int i = 1; i < symbolIndex; i++)
-            nodes[i] = (i < startSymbols ? new HuffmanNode((int)symbolReferences[i], null, null) : new HuffmanNode(-2, nodes[(int)(symbolReferences[i]>>32)], nodes[(int)(symbolReferences[i])]));
+        for(int i = 0; i < symbolIndex; i++)
+            nodes[i] = (symbolReferenceB[i] < 0 ? new HuffmanNode(symbolReferenceA[i], null, null) : new HuffmanNode(-2, nodes[symbolReferenceA[i]], nodes[symbolReferenceB[i]]));
 
         //Register the counts.
-        for(int i = 0; i < data.length; i++)
-            for(int x = 0; x < lengths[i]; x++)
-                nodes[Math.abs(data[i][x])].frequency++;
-        nodes[endOfLineSymbol].symbol = -1;
-
-        //Stupid piece of code that should be removed. The nodes array starts from index 1. This code moves everything so things start at index 0.
-        HuffmanNode[] forHuffman = new HuffmanNode[symbolIndex-1];
-        System.arraycopy(nodes, 1, forHuffman, 0, symbolIndex - 1);
+        for (int symbol : symbols)
+            if (symbol > -1)
+                nodes[symbol].frequency++;
 
         //Lets make a canonical Huffman tree.
-        CanonicalHuffmanTree tree = new CanonicalHuffmanTree(forHuffman);
+        CanonicalHuffmanTree tree = new CanonicalHuffmanTree(nodes);
 
         //And lastly write the data.
         //First the tree.
-        tree.writeTree(treeWriter);
+        tree.writeTree(writer);
 
         //And now the nodes.
-        for(int i = 0; i < data.length; i++)
-            for(int x = 0; x < lengths[i]; x++)
-                nodes[Math.abs(data[i][x])].bitSet.write(dataWriter);
+        for (int symbol : symbols)
+            if (symbol > -1)
+                writer.add(nodes[symbol].bitSet);
     }
 
+    private void addSymbol(int symbolA, int symbolB, int index, boolean countMe, boolean forceFirst, boolean forceSecond, int[] offsetsLeft, int[] offsetsRight, HashTable fromSymbolToSymbol, ArrayList<CNode> touched)
+    {
+        if((!forceFirst && symbolCount[symbolA] < MINIMALCOUNT) || (!forceSecond && symbolCount[symbolB] < MINIMALCOUNT))
+            return;
+        long symbol = (((long)symbolA) << 32) + symbolB;
+        CNode node = (CNode)fromSymbolToSymbol.get(symbol);
+        if(node == null)
+        {
+            node = new CNode(symbolA, symbolB, index);
+            fromSymbolToSymbol.add(node);
+            touched.add(node);
+        }
+        else
+        {
+            if(!node.touched) {
+                touched.add(node);
+                node.touched = true;
+            }
+            node.add(offsetsLeft, offsetsRight, index);
+        }
+        if(countMe) {
+            node.change++;
+        }
+    }
+
+    private void removeSymbol(long symbol, int index, int[] offsetsLeft, int[] offsetsRight, HashTable fromSymbolToSymbol, ArrayList<CNode> touched)
+    {
+        CNode node = (CNode) fromSymbolToSymbol.get(symbol);
+        if(node != null) {
+            if(!node.touched) {
+                touched.add(node);
+                node.touched = true;
+            }
+            node.change--;
+            node.remove(offsetsLeft, offsetsRight, index);
+        }
+    }
+
+    private int findNextSymbol(int index, int[] symbols)
+    {
+        while(++index < symbols.length)
+            if(symbols[index] > -1)
+                return index;
+        return -1;
+    }
+
+    private int findPreviousSymbol(int index, int[] symbols)
+    {
+        while(--index >= 0)
+            if(symbols[index] > -1)
+                return index;
+        return -1;
+    }
+
+    private void processTouched(int[] offsetsLeft, int[] offsetsRight, HashTable fromSymbolToSymbol, ArrayList<CNode> touched, BPlusTreeFSByteArray scoreList)
+    {
+        byte[] key = new byte[12];
+        for(CNode node : touched)
+        {
+            BPlusTreeFSByteArray.write(key, node.count, 0);
+            BPlusTreeFSByteArray.write(key, node.getKey(), 4);
+
+            scoreList.delete(key);
+
+            node.count += node.change;
+            node.change = 0;
+            node.touched = false;
+
+            if(node.count >= MINIMALCOUNT) {
+                BPlusTreeFSByteArray.write(key, node.count, 0);
+
+                scoreList.insert(key);
+            }
+            else
+            {
+                node.removeAll(offsetsLeft, offsetsRight);
+                fromSymbolToSymbol.delete(node);
+            }
+        }
+        touched.clear();
+    }
+
+    static Encoder bytesToSymbols(byte[] input) {
+        Encoder result = new Encoder();
+
+        int[] references = new int[256];
+        int[] symbols = new int[input.length + 1];
+        for (int x = 0; x < input.length; x++) {
+            int b = input[x] & 0xFF;
+            if (references[b] == 0) {
+                result.symbolReferenceA[result.symbolIndex] = b;
+                result.symbolReferenceB[result.symbolIndex] = -1;
+                result.symbolSize[result.symbolIndex] = 1;
+                references[b] = result.symbolIndex++;
+            }
+            symbols[x] = references[b];
+        }
+        symbols[input.length] = result.endOfLineSymbol;
+        result.symbolReferenceA[result.endOfLineSymbol] = -1;
+        result.symbolReferenceB[result.endOfLineSymbol] = -1;
+        result.symbolSize[result.endOfLineSymbol] = 1;
+        result.symbolize(symbols);
+        return result;
+    }
+
+
+
+    class CNode implements HashableLong {
+        final int symbolA;
+        final int symbolB;
+        int count;
+        int change;
+        boolean touched;
+        int firstIndex;
+        private int lastIndex;
+
+        CNode(int symbolA, int symbolB, int index) {
+            this.symbolA = symbolA;
+            this.symbolB = symbolB;
+            count = 0;
+            change = 0;
+            touched = true;
+            firstIndex = index;
+            lastIndex = index;
+        }
+
+        public void add(int[] offsetLeft, int[] offsetRight, int index) {
+            if(lastIndex == -1)
+            {
+                firstIndex = index;
+            }
+            else {
+                offsetRight[lastIndex] = index;
+                offsetLeft[index] = lastIndex;
+            }
+
+            lastIndex = index;
+        }
+
+        void removeAll(int[] offsetLeft, int[] offsetRight)
+        {
+            int index = firstIndex;
+            while(index > -1)
+            {
+                int futureIndex = offsetRight[index];
+
+                offsetLeft[index] = -1;
+                offsetRight[index] = -1;
+
+                index = futureIndex;
+            }
+
+            firstIndex = -1;
+            lastIndex = -1;
+        }
+
+
+        void remove(int[] offsetLeft, int[] offsetRight, int index)
+        {
+            int left = offsetLeft[index];
+            int right = offsetRight[index];
+
+
+            if(left > -1) {
+                offsetRight[left] = right;
+            }
+            if(right > -1)
+                offsetLeft[right] = left;
+
+            offsetLeft[index] = -1;
+            offsetRight[index] = -1;
+
+            if(index == firstIndex)
+                firstIndex = right;
+
+            if(index == lastIndex)
+                lastIndex = left;
+        }
+
+        public long getKey()
+        {
+            return ((long)symbolA << 32) + symbolB;
+        }
+
+        @Override
+        public long getHash() {
+            return getKey();
+        }
+    }
 
 }

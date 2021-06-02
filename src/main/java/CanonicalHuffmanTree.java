@@ -5,8 +5,6 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
  */
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
 
 class CanonicalHuffmanTree {
 
@@ -90,35 +88,26 @@ class CanonicalHuffmanTree {
         this.frequencyArray = newFreqs;
     }
 
-    private static int bitSize(long i)
-    {
-        int result = 0;
-        while(i > 0)
-        {
-            result++;
-            i>>>=1;
-        }
-        return result;
-    }
-
     void writeTree(BitStreamWriter writer) throws IOException {
         long startLength = writer.length();
 
-        int bitSize = bitSize(biggestCount);
+        int bitSize = DecodeNode.bitSize(biggestCount);
         BitSet bits = new BitSet(5, bitSize);
-        BitSet first = new BitSet(6, firstOccurrence);
         BitSet last = new BitSet(6, lastOccurrence);
-        bits.write(writer);
-        first.write(writer);
-        last.write(writer);
+        int firstBitSize = DecodeNode.bitSize(lastOccurrence-1); //It should be smaller
+        BitSet first = new BitSet(firstBitSize, firstOccurrence);
+        writer.add(bits);
+        writer.add(last);
+        writer.add(first);
 
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
         {
             BitSet amount = new BitSet(bitSize, depths[i]);
-            amount.write(writer);
+            writer.add(amount);
         }
 
-        endOfLineSymbol.bitSet.write(writer); //end of line symbol first
+        int maxLiteralCount = 257;
+        writer.add(endOfLineSymbol.bitSet);  //end of line symbol first
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
         {
             if(depths[i] > 0) {
@@ -129,89 +118,24 @@ class CanonicalHuffmanTree {
                     else
                         break;
                 }
-                BitSet amount = new BitSet(bitSize(depths[i]), literalCount);
-                amount.write(writer);
+                BitSet amount = new BitSet(Math.min(DecodeNode.bitSize(maxLiteralCount),DecodeNode.bitSize(depths[i])), literalCount);
+                writer.add(amount);
+                maxLiteralCount -= literalCount;
                 for (int x = 0; x < literalCount; x++) {
                     if (frequencyArray[i][x].symbol > -1) {
-                        BitSet literalByte = new BitSet(8, frequencyArray[i][x].symbol);
-                        literalByte.write(writer);
+                        writer.add(frequencyArray[i][x].symbol);
                     }
                 }
                 for (int x = literalCount; x < depths[i]; x++) {
-                    frequencyArray[i][x].a.bitSet.write(writer);
-                    frequencyArray[i][x].b.bitSet.write(writer);
+                    writer.add(frequencyArray[i][x].a.bitSet);
+                    writer.add(frequencyArray[i][x].b.bitSet);
                 }
             }
         }
         long endLength = writer.length();
+        System.out.println(" done.");
+
         System.out.println("Size of library:\t" + (endLength - startLength) + " bytes");
-    }
-
-    static DecodeNode readTree(BitStreamReader reader) throws Exception {
-        int bitSize = (int)BitSet.read(reader, 5).getValue();
-        int firstOccurrence = (int)BitSet.read(reader, 6).getValue();
-        int lastOccurrence = (int)BitSet.read(reader, 6).getValue();
-
-        BitSet[][] huffbits = new BitSet[lastOccurrence+1][];
-        int[] depths = new int[lastOccurrence+1];
-        for(int i = firstOccurrence; i <= lastOccurrence; i++)
-        {
-            depths[i] =  (int)BitSet.read(reader, bitSize).getValue();
-            huffbits[i] = new BitSet[depths[i]];
-        }
-
-        //Assign new canonical bits.
-        BitSet bits = new BitSet(firstOccurrence,0);
-        HashSet<BitSet> leafs = new HashSet<>();
-        for(int i = firstOccurrence; i <= lastOccurrence; i++)
-        {
-            for(int x = 0; x < depths[i]; x++)
-            {
-                huffbits[i][x] = bits.copy();
-                leafs.add(huffbits[i][x]);
-                bits.increase();
-            }
-            bits.increaseLength();
-            bits.shiftLeft();
-        }
-
-        DecodeNode root = new DecodeNode(leafs, new BitSet(0));
-        HashMap<BitSet, DecodeNode> dictionary = new HashMap<>();
-        root.addToDictionary(dictionary);
-
-        DecodeNode[][] nodes = new DecodeNode[lastOccurrence+1][];
-        for(int i = firstOccurrence; i <= lastOccurrence; i++)
-        {
-            nodes[i] = new DecodeNode[depths[i]];
-            for(int x = 0; x < depths[i]; x++)
-                nodes[i][x] = dictionary.get(huffbits[i][x]);
-        }
-
-        DecodeNode endOfLineSymbol = root.get(reader);
-        endOfLineSymbol.data = new byte[0];
-
-        for(int i = firstOccurrence; i <= lastOccurrence; i++)
-        {
-            if(depths[i] > 0) {
-                int literalCount = (int) BitSet.read(reader, bitSize(depths[i])).getValue();
-                for (int x = 0; x < literalCount; x++) {
-
-                    if (nodes[i][x] != endOfLineSymbol) {
-                        byte literalByte = (byte) BitSet.read(reader, 8).getValue();
-                        nodes[i][x].setData(new byte[]{literalByte});
-                    }
-                }
-                for (int x = literalCount; x < depths[i]; x++) {
-                    nodes[i][x].setToResolveNodes(root.get(reader), root.get(reader));
-                }
-            }
-        }
-
-        for(int i = firstOccurrence; i <= lastOccurrence; i++)
-            for(int x = 0; x < depths[i]; x++)
-                nodes[i][x].resolve();
-
-        return root;
     }
 
 }

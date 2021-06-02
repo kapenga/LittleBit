@@ -4,9 +4,7 @@ Written by Wybren Kapenga
 Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
  */
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
@@ -37,11 +35,9 @@ public class Main {
                     BitStreamWriter writer = new BitStreamWriter(fos);
 
                     System.out.print("Find symbols...");
-                    Encoder2 e = Encoder2.bytesToSymbols(data);
-                    System.out.println(" done.");
+                    Encoder e = Encoder.bytesToSymbols(data);
                     System.out.print("Write encoded data...");
-                    e.write(writer);
-                    System.out.println(" done.");
+                    e.writeHuffman(writer);
 
                     writer.close();
                     fos.close();
@@ -55,10 +51,11 @@ public class Main {
                     FileInputStream fis = new FileInputStream(args[1]);
                     BitStreamReader reader = new BitStreamReader(fis);
                     FileOutputStream writer = new FileOutputStream(args[2], false);
-                    DecodeNode root = CanonicalHuffmanTree.readTree(reader);
-                    root.readField(reader, writer);
+                    BufferedOutputStream bufferedWriter = new BufferedOutputStream(writer);
+                    DecodeNode root = DecodeNode.readTree(reader);
+                    root.readField(reader, bufferedWriter);
+                    bufferedWriter.close();
                     fis.close();
-                    writer.close();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

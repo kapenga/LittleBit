@@ -18,13 +18,32 @@ class BitStreamWriter {
     private OutputStream stream;
 
     BitStreamWriter(OutputStream stream) {
-        this.stream = stream;//new FileOutputStream(filename, false);
+        this.stream = stream;
         buffer = new byte[bufferSize];
         offset = 0;
         length = 0;
     }
 
-    void add(boolean bit) throws IOException {
+    void add(BitSet bits) throws IOException {
+        long v = bits.getValue();
+        int length = bits.getLength();
+
+        while(length > 0) {
+            buffer[offset >> 3] |= v << (offset & 7);
+            int inc = Math.min(8 - (offset & 7), length);
+            offset += inc;
+            length -= inc;
+            this.length += inc;
+            v >>= inc;
+            if (offset == (bufferSize << 3)) {
+                stream.write(buffer);
+                Arrays.fill(buffer, (byte) 0);
+                offset = 0;
+            }
+        }
+    }
+
+    public void add(boolean bit) throws IOException {
         this.length++;
         if(bit)
             buffer[offset>>3] |= 1 << (offset & 7);
@@ -37,6 +56,23 @@ class BitStreamWriter {
         }
     }
 
+    void add(int v) throws IOException {
+        int length = 8;
+
+        while(length > 0) {
+            buffer[offset >> 3] |= v << (offset & 7);
+            int inc = Math.min(8 - (offset & 7), length);
+            offset += inc;
+            length -= inc;
+            this.length += inc;
+            v >>= inc;
+            if (offset == (bufferSize << 3)) {
+                stream.write(buffer);
+                Arrays.fill(buffer, (byte) 0);
+                offset = 0;
+            }
+        }
+    }
 
     private void flush() throws IOException {
         if(offset > 0)
