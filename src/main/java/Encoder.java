@@ -21,7 +21,7 @@ class Encoder {
             2. Make it a new symbol
             3. Repeat
          */
-        HashTable fromSymbolToSymbol = new HashTable(DecodeNode.bitSize(symbols.length)-2);
+        HashTable fromSymbolToSymbol = new HashTable(DecodeNode.bitSize(symbols.length)-4);
         BPlusTreeFSByteArray scoreList = new BPlusTreeFSByteArray(12);
         ArrayList<CNode> touched = new ArrayList<>();
         this.symbols = symbols;
@@ -55,7 +55,6 @@ class Encoder {
             if (scoreList.size() < 1) {
                 System.out.println(" done.");
                 System.out.println("Number of symbols: " + symbolIndex);
-                System.out.println("HashTable fill ratio: " + (Math.round(fromSymbolToSymbol.getFillRatio() * 1000.0) / 1000.0));
                 break;
             }
 
@@ -78,7 +77,9 @@ class Encoder {
                 int futureIndex = offsetsRight[index];
                 if (symbols[index] > -1) {
 
-                    int previousIndex = findPreviousSymbol(index, symbols);
+                    int previousIndex = index;
+                    while(--previousIndex > -1 && symbols[previousIndex] < 0);
+
                     if (previousIndex > -1) {
                         lastSymbol = (((long) symbols[previousIndex]) << 32) + symbols[index];
                         removeSymbol(lastSymbol, previousIndex, offsetsLeft, offsetsRight, fromSymbolToSymbol, touched);
@@ -86,7 +87,9 @@ class Encoder {
 
                     int nextIndex = index + nextOffset;
 
-                    int nextNextIndex = findNextSymbol(nextIndex, symbols);
+                    int nextNextIndex = nextIndex;
+                    while(++nextNextIndex < symbols.length && symbols[nextNextIndex] < 0);
+
                     if (nextNextIndex > -1) {
                         lastSymbol = (((long) winner.symbolB) << 32) + symbols[nextNextIndex];
 
@@ -186,29 +189,13 @@ class Encoder {
         }
     }
 
-    private int findNextSymbol(int index, int[] symbols)
-    {
-        while(++index < symbols.length)
-            if(symbols[index] > -1)
-                return index;
-        return -1;
-    }
-
-    private int findPreviousSymbol(int index, int[] symbols)
-    {
-        while(--index >= 0)
-            if(symbols[index] > -1)
-                return index;
-        return -1;
-    }
-
     private void processTouched(int[] offsetsLeft, int[] offsetsRight, HashTable fromSymbolToSymbol, ArrayList<CNode> touched, BPlusTreeFSByteArray scoreList)
     {
         byte[] key = new byte[12];
         for(CNode node : touched)
         {
             BPlusTreeFSByteArray.write(key, node.count, 0);
-            BPlusTreeFSByteArray.write(key, node.getKey(), 4);
+            BPlusTreeFSByteArray.write(key, node.symbol, 4);
 
             scoreList.delete(key);
 
@@ -258,6 +245,8 @@ class Encoder {
     class CNode implements HashableLong {
         final int symbolA;
         final int symbolB;
+        final long symbol;
+
         int count;
         int change;
         boolean touched;
@@ -267,6 +256,7 @@ class Encoder {
         CNode(int symbolA, int symbolB, int index) {
             this.symbolA = symbolA;
             this.symbolB = symbolB;
+            this.symbol = (((long)symbolA) << 32) + symbolB;
             count = 0;
             change = 0;
             touched = true;
@@ -274,7 +264,7 @@ class Encoder {
             lastIndex = index;
         }
 
-        public void add(int[] offsetLeft, int[] offsetRight, int index) {
+        void add(int[] offsetLeft, int[] offsetRight, int index) {
             if(lastIndex == -1)
             {
                 firstIndex = index;
@@ -327,14 +317,15 @@ class Encoder {
                 lastIndex = left;
         }
 
-        public long getKey()
-        {
-            return ((long)symbolA << 32) + symbolB;
+        @Override
+        public long getHash() {
+            return symbol;
         }
 
         @Override
-        public long getHash() {
-            return getKey();
+        public String toString()
+        {
+            return Long.toString(symbol);
         }
     }
 

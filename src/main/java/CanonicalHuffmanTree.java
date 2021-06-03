@@ -123,7 +123,7 @@ class CanonicalHuffmanTree {
                 maxLiteralCount -= literalCount;
                 for (int x = 0; x < literalCount; x++) {
                     if (frequencyArray[i][x].symbol > -1) {
-                        writer.add(frequencyArray[i][x].symbol);
+                        writer.addByte(frequencyArray[i][x].symbol);
                     }
                 }
                 for (int x = literalCount; x < depths[i]; x++) {

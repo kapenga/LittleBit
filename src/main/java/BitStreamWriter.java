@@ -43,20 +43,7 @@ class BitStreamWriter {
         }
     }
 
-    public void add(boolean bit) throws IOException {
-        this.length++;
-        if(bit)
-            buffer[offset>>3] |= 1 << (offset & 7);
-        offset++;
-        if(offset == (bufferSize << 3))
-        {
-            stream.write (buffer);
-            Arrays.fill(buffer, (byte)0);
-            offset = 0;
-        }
-    }
-
-    void add(int v) throws IOException {
+    void addByte(int v) throws IOException {
         int length = 8;
 
         while(length > 0) {
