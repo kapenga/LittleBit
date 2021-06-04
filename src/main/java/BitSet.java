@@ -56,13 +56,14 @@ class BitSet {
     }
 
     static BitSet read(BitStreamReader reader, int bits) throws Exception {
-        long v = 0;
-        for(int i = 0; i < bits; i++)
-        {
-            if(reader.nextBit() > 0)
-                v |= 1L << i;
-        }
-        return new BitSet(bits, v);
+//        long v = 0;
+//        for(int i = 0; i < bits; i++)
+//        {
+//            if(reader.nextBit() > 0)
+//                v |= 1L << i;
+//        }
+//        return new BitSet(bits, v);
+        return new BitSet(bits, reader.nextBits(bits));
     }
 
     BitSet copy()

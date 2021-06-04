@@ -2,6 +2,13 @@
 Written by Wybren Kapenga
 
 Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+TODO:
+- Improve decoding. Its okay but not high performance.
+- There will be a problem decoding when the endOfLine symbols are included into other symbols.
+- Recreate the option to compress more than one field.
+- Create an encoder that can work with very big files that do not fit into RAM.
+- Create an encoder that can do recursive looking for the optimal encoding.
  */
 
 import java.io.*;
