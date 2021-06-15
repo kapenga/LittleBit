@@ -20,12 +20,9 @@ class DecodeNode {
 
     private int depth;
 
-    private DecodeNode(int[] leaveCount, int[] depths, int topDepth,  int[] topIndex, DecodeNode[] top, DecodeNode[][] nodes, BitSet bits, int depth)
+    private DecodeNode(int[] leaveCount, int[] depths, int topDepth,  int[] topIndex, DecodeNode[] top, DecodeNode[][] nodes, int depth)
     {
         this.depth = depth;
-        BitSet newBits = bits.copy();
-        newBits.increaseLength();
-        newBits.shiftLeft();
 
         if(leaveCount[depth] < depths[depth])
         {
@@ -40,9 +37,8 @@ class DecodeNode {
         }
         else //is not a leave
         {
-            a = new DecodeNode(leaveCount, depths, topDepth, topIndex, top, nodes, newBits, depth + 1);
-            newBits.increase();
-            b = new DecodeNode(leaveCount, depths, topDepth, topIndex, top, nodes, newBits, depth + 1);
+            a = new DecodeNode(leaveCount, depths, topDepth, topIndex, top, nodes, depth + 1);
+            b = new DecodeNode(leaveCount, depths, topDepth, topIndex, top, nodes, depth + 1);
         }
     }
 
@@ -58,12 +54,6 @@ class DecodeNode {
         return n;
     }
 
-    private void setToResolveNodes(DecodeNode a, DecodeNode b)
-    {
-        this.toResolveA = a;
-        this.toResolveB = b;
-    }
-
     private void resolve()
     {
         if(data != null)
@@ -72,7 +62,6 @@ class DecodeNode {
         toResolveB.resolve();
         data = combine(toResolveA.data, toResolveB.data);
     }
-
 
     private static byte[] combine(byte[] key1, byte[] key2)
     {
@@ -108,21 +97,21 @@ class DecodeNode {
     }
 
     static DecodeNode[] readTree(BitStreamReader reader) throws Exception {
-        int bitSize = (int)BitSet.read(reader, 5).getValue();
-        int lastOccurrence = (int)BitSet.read(reader, 6).getValue();
+        int bitSize = reader.nextBits(5);
+        int lastOccurrence = reader.nextBits(6);
         int firstBitSize = bitSize(lastOccurrence-1);
-        int firstOccurrence = (int)BitSet.read(reader, firstBitSize).getValue();
+        int firstOccurrence = reader.nextBits(firstBitSize);
 
         int[] depths = new int[lastOccurrence+1];
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
-            depths[i] =  (int)BitSet.read(reader, bitSize).getValue();
+            depths[i] =  reader.nextBits(bitSize);
 
         DecodeNode[] top = new DecodeNode[1 << lastOccurrence];
         int[] topIndex = new int[1];
         DecodeNode[][] nodes = new DecodeNode[lastOccurrence+1][];
         int[] leaveCount = new int[depths.length];
 
-        DecodeNode root = new DecodeNode(leaveCount, depths, lastOccurrence, topIndex, top, nodes, new BitSet(0), 0);
+        DecodeNode root = new DecodeNode(leaveCount, depths, lastOccurrence, topIndex, top, nodes, 0);
 
         DecodeNode endOfLineSymbol = root.get(reader);
         endOfLineSymbol.data = new byte[0];
@@ -131,17 +120,18 @@ class DecodeNode {
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
         {
             if(depths[i] > 0) {
-                int literalCount = (int) BitSet.read(reader, Math.min(bitSize(maxLiteralCount), bitSize(depths[i]))).getValue();
+                int literalCount = reader.nextBits(Math.min(bitSize(maxLiteralCount), bitSize(depths[i])));
                 maxLiteralCount-=literalCount;
                 for (int x = 0; x < literalCount; x++) {
 
                     if (nodes[i][x] != endOfLineSymbol) {
-                        byte literalByte = (byte) BitSet.read(reader, 8).getValue();
+                        byte literalByte = (byte)reader.nextBits(8);
                         nodes[i][x].data = new byte[]{literalByte};
                     }
                 }
                 for (int x = literalCount; x < depths[i]; x++) {
-                    nodes[i][x].setToResolveNodes(root.get(reader), root.get(reader));
+                    nodes[i][x].toResolveA = root.get(reader);
+                    nodes[i][x].toResolveB = root.get(reader);
                 }
             }
         }
