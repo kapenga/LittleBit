@@ -7,8 +7,6 @@ DecodeNode is able to function without the encoder. This way it is possible to c
  */
 
 import java.io.OutputStream;
-import java.util.HashMap;
-import java.util.HashSet;
 
 class DecodeNode {
 
@@ -16,25 +14,35 @@ class DecodeNode {
     private DecodeNode b;
 
     private byte[] data;
-    private BitSet bits;
 
     private DecodeNode toResolveA;
     private DecodeNode toResolveB;
 
+    private int depth;
 
-    private DecodeNode(HashSet<BitSet> leaves, BitSet bits)
+    private DecodeNode(int[] leaveCount, int[] depths, int topDepth,  int[] topIndex, DecodeNode[] top, DecodeNode[][] nodes, BitSet bits, int depth)
     {
-        this.bits = bits.copy();
-
+        this.depth = depth;
         BitSet newBits = bits.copy();
         newBits.increaseLength();
         newBits.shiftLeft();
 
-        if(!leaves.contains(bits)) //is not a leave
+        if(leaveCount[depth] < depths[depth])
         {
-            a = new DecodeNode(leaves, newBits);
+            if(nodes[depth]==null)
+                nodes[depth] = new DecodeNode[depths[depth]];
+            nodes[depth][leaveCount[depth]] = this;
+            leaveCount[depth]++;
+
+            int topNodeSize = 1 << (topDepth - depth);
+            for(int i = 0; i < topNodeSize; i++)
+                top[topIndex[0]++] = this;
+        }
+        else //is not a leave
+        {
+            a = new DecodeNode(leaveCount, depths, topDepth, topIndex, top, nodes, newBits, depth + 1);
             newBits.increase();
-            b = new DecodeNode(leaves, newBits);
+            b = new DecodeNode(leaveCount, depths, topDepth, topIndex, top, nodes, newBits, depth + 1);
         }
     }
 
@@ -48,24 +56,6 @@ class DecodeNode {
                 n = n.b;
         }
         return n;
-    }
-
-    private void addToDictionary(HashMap<BitSet, DecodeNode> dictionary)
-    {
-        if(a == null)//is leaf
-        {
-            dictionary.put(bits, this);
-        }
-        else
-        {
-            a.addToDictionary(dictionary);
-            b.addToDictionary(dictionary);
-        }
-    }
-
-    void setData(byte[] data)
-    {
-        this.data = data;
     }
 
     private void setToResolveNodes(DecodeNode a, DecodeNode b)
@@ -92,12 +82,17 @@ class DecodeNode {
         return key;
     }
 
-    void readField(BitStreamReader reader, OutputStream output) throws Exception {
-        DecodeNode node = get(reader);
+    static void readFields(DecodeNode[] tops, BitStreamReader reader, OutputStream output) throws Exception {
+        int bitSize = bitSize(tops.length-1);
+        int mask = (1 << bitSize)-1;
+        int index = Integer.reverse(reader.nextBits(bitSize)) >>> (32 - bitSize);
+
+        DecodeNode node = tops[index].get(reader);
         while(node.data.length > 0)
         {
             output.write(node.data, 0, node.data.length);
-            node = get(reader);
+            index = (Integer.reverse(reader.nextBits(node.depth)) >>> (32 - node.depth)) | (index << node.depth);
+            node = tops[index&mask].get(reader);
         }
     }
 
@@ -112,46 +107,22 @@ class DecodeNode {
         return result;
     }
 
-    static DecodeNode readTree(BitStreamReader reader) throws Exception {
+    static DecodeNode[] readTree(BitStreamReader reader) throws Exception {
         int bitSize = (int)BitSet.read(reader, 5).getValue();
         int lastOccurrence = (int)BitSet.read(reader, 6).getValue();
         int firstBitSize = bitSize(lastOccurrence-1);
         int firstOccurrence = (int)BitSet.read(reader, firstBitSize).getValue();
 
-        BitSet[][] huffbits = new BitSet[lastOccurrence+1][];
         int[] depths = new int[lastOccurrence+1];
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
-        {
             depths[i] =  (int)BitSet.read(reader, bitSize).getValue();
-            huffbits[i] = new BitSet[depths[i]];
-        }
 
-        //Assign new canonical bits.
-        BitSet bits = new BitSet(firstOccurrence,0);
-        HashSet<BitSet> leafs = new HashSet<>();
-        for(int i = firstOccurrence; i <= lastOccurrence; i++)
-        {
-            for(int x = 0; x < depths[i]; x++)
-            {
-                huffbits[i][x] = bits.copy();
-                leafs.add(huffbits[i][x]);
-                bits.increase();
-            }
-            bits.increaseLength();
-            bits.shiftLeft();
-        }
-
-        DecodeNode root = new DecodeNode(leafs, new BitSet(0));
-        HashMap<BitSet, DecodeNode> dictionary = new HashMap<>();
-        root.addToDictionary(dictionary);
-
+        DecodeNode[] top = new DecodeNode[1 << lastOccurrence];
+        int[] topIndex = new int[1];
         DecodeNode[][] nodes = new DecodeNode[lastOccurrence+1][];
-        for(int i = firstOccurrence; i <= lastOccurrence; i++)
-        {
-            nodes[i] = new DecodeNode[depths[i]];
-            for(int x = 0; x < depths[i]; x++)
-                nodes[i][x] = dictionary.get(huffbits[i][x]);
-        }
+        int[] leaveCount = new int[depths.length];
+
+        DecodeNode root = new DecodeNode(leaveCount, depths, lastOccurrence, topIndex, top, nodes, new BitSet(0), 0);
 
         DecodeNode endOfLineSymbol = root.get(reader);
         endOfLineSymbol.data = new byte[0];
@@ -166,7 +137,7 @@ class DecodeNode {
 
                     if (nodes[i][x] != endOfLineSymbol) {
                         byte literalByte = (byte) BitSet.read(reader, 8).getValue();
-                        nodes[i][x].setData(new byte[]{literalByte});
+                        nodes[i][x].data = new byte[]{literalByte};
                     }
                 }
                 for (int x = literalCount; x < depths[i]; x++) {
@@ -179,7 +150,6 @@ class DecodeNode {
             for(int x = 0; x < depths[i]; x++)
                 nodes[i][x].resolve();
 
-        return root;
+        return top;
     }
-
 }

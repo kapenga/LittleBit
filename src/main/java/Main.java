@@ -59,8 +59,8 @@ public class Main {
                     BitStreamReader reader = new BitStreamReader(fis);
                     FileOutputStream writer = new FileOutputStream(args[2], false);
                     BufferedOutputStream bufferedWriter = new BufferedOutputStream(writer);
-                    DecodeNode root = DecodeNode.readTree(reader);
-                    root.readField(reader, bufferedWriter);
+                    DecodeNode[] bottom = DecodeNode.readTree(reader);
+                    DecodeNode.readFields(bottom, reader, bufferedWriter);
                     bufferedWriter.close();
                     fis.close();
                 } catch (Exception e) {
