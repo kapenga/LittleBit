@@ -9,7 +9,7 @@ Author: Wybren Kapenga
 - Static model
 
 ### Current state and license:
-The current version of LittleBit 0.3 should be considered an alpha version and a tech demo.
+LittleBit should be considered an alpha version and a tech demo.
 Licensed under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)  
 Source code can be found on https://github.com/kapenga/LittleBit/  
 
