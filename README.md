@@ -1,4 +1,4 @@
-# LittleBit 0.3
+# LittleBit 0.4
 Author: Wybren Kapenga
 
 ### Features:
@@ -14,12 +14,18 @@ Licensed under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
 Source code can be found on https://github.com/kapenga/LittleBit/  
 
 ### Updates
+## 0.4
+Introduced the possibility of encoding and decoding multiple byte arrays. This option is added to be able to store and retreive database fields or anything value that must be read individual.
+Decoding is also transformed to support field level reading. Meanwhile the performance of decoding is improved.
+Reduced the size of the dictionary slightly with a few bits.
+Rewritten the readme.md.
+
 ## 0.3
 Significant improvements in encoding and decoding speeds.
 A few small bug fixes.
 
 ## 0.2
-Introduced a new encoder that is around 300 times faster for files above 20 megabyte. This code can be found in encoder2.java.
+Introduced a new encoder that is around 300 times faster for files above 20 megabyte.
 The speed up is accomplished by keeping track of counts and positions. This increases the memory consumption from around 6x the input file to around 21x the input file.
 Also the compression ratio suffers a bit because we simply take the biggest count instead of a slightly more intelligent approach.
 But the result is a practically usable algorithm instead of a nice theoretical idea.
@@ -29,10 +35,21 @@ Generating the creation of large Huffman trees is sped up too in this version.
 A small bug in the BitStreamWriter is fixed.
 
 ## 0.1
-First original version. Still available in Encoder.java.
+First original version.
 
 ### Introduction
-The idea for a new compression technique for databases was born while designing a new database engine. A key requirement is that it should be able to decode the data on a table field level while maintaining a good compression ratio. The initial question was: Is it possible to get good compression ratios while using Huffman encoding? It would require a static Huffman tree and the sum of the size of the tree and the encoded data must be competitive with other compression techniques. After creating a demo it is shown that this is indeed possible but at the cost of time to find an appropriate static Huffman tree.
+LittleBit is created a compression algorithm for compressing database data. A key requirement was the ability to be able to read one specific element without reading the entire archive first.
+LittleBit uses a small dictionary containing a Huffman tree. This tree is used to encode and decode the data elements. There is no adaptive encoding or decoding. The tree never changes.
+
+LittleBit uses Huffman coding despite the fact that Huffman does not offer optimal entropy encoding. The 2 main reasons for this are:
+- The dictionary part can be stored using a canonical version of the Huffman tree which is a very efficient way of storing a tree. As far as I know there is no equivalent for efficient storing of frequency tables that could be used in arithmetic coding.
+- Huffman coding is simple and straight forward. There is no need for additional computation.
+
+Traditionally Huffman coding struggles with compression ratios, especially in case of highly repetitive data. LittleBit has solved this problem by using variable length codewords that are dynamically generated using the specific statistical properties of the input data.
+The algortithm is capable of producing competetive compression ratios while using pure static Huffman trees.
+LittleBit has mid-range decoding speed. For example: Enwik8 is decoded in 2.5 seconds on a laptop using 1 core. That's 40mb/s.
+
+The end result is possibly the most powerful pure Huffman coder to date.
 
 ### Historical similar approaches
 Two algorithms are found that can be compared to LittleBit. The first one is called HuffWord, mentioned in the book ‘Managing gigabytes’ written by Ian H. Witten, Alistair Moffat, and Timothy C. Bell. The code or the program could not be found and the performance is also unknown. The second program is HuffSyllable, mentioned in ‘Syllable-based Compression’, a Ph.D. Thesis written by Jan Lansky. Additional research is done by Thomas Kuthan and Jan Lansky for the Dateso 2007 Workshop where a genetic algorithm is used to optimize HuffSyllable. In all the cases mentioned here it is unknown if the dictionary (Huffman tree) is included in the scoring of the algorithms. Also the program or algorithm is not released and the test data mentioned is not available. Therefore on this moment it is impossible to correctly compare LittleBit to these algorithms. 
@@ -42,8 +59,9 @@ LittleBit was developed without prior knowledge of other programs with similar a
 
 ## Technical specifications:
 ### Encoding
-The program encodes in 2 stages. During the first stage the program tries to find an optimal static Huffman tree for the input. Unlike most classical static Huffman trees the leafs can represent one or more bytes. The tree is saved as a canonical Huffman tree. Instead of writing the bytes, the multi-byte leafs have a reference to the 2 ‘parent’ leafs. This can be multiple layers deep.
-Finding the optimal static Huffman tree is a NP-hard task. A (sort of) lexicographic breadth first approach (without backtracking) is developed to find a fair but sub-optimal solution in a time span that is not near infinite. Or in words I would use: “It’s a one way trip using educated guesses that seems to work okay’ish somehow.”
+The program encodes in 2 stages.
+During the first stage the program tries to find an optimal static Huffman tree for the input. Unlike most classical static Huffman trees the leafs can represent one or more bytes. The tree is saved as a canonical Huffman tree. Instead of writing the bytes, the multi-byte leafs have a reference to the 2 ‘parent’ leafs. This can be multiple layers deep.
+Finding the optimal static Huffman tree is a NP-hard task. A breadth first approach (without backtracking) is developed to find a fair but sub-optimal solution in a time span that is not near infinite.
 A ‘perfect’ version of finding the optimal outcome in this NP-hard task can be made using a recursive full search, but the calculation time for even small files would be almost infinite.
 Memory usage during the first stage is between 20 or 21 times the size of the input.
 In the second and last stage the data is encoded using the canonical Huffman tree that is found in stage1.
@@ -56,7 +74,7 @@ The static Huffman tree can be shared among multiple cores (or even machines) to
 The data can be decoded on leaf-level if the bit position of the start of the leaf is known. A use case can be a database index referencing the bit positions of the compressed fields. Using the static Huffman tree, the database engine (or client!) can decode the information that is stored in a particular field.
 Another use case for random access or multi-core reading is when the data is stored in fixed size blocks of for example 1 kilobyte. This can be useful for games and other software that uses a large amount of read only data that needs to be randomly accessed.
 
-### Results using encoder version 2
+### Results using LittleBit 0.2
 |File|Size|Huffman tree|Data|Total|Encoding time|
 |----|----:|------------:|----:|-----:|-------------:|
 |acrord32.exe|3.870.784|211.279|1.821.209|2.032.488|2 s|
@@ -65,7 +83,7 @@ Another use case for random access or multi-core reading is when the data is sto
 |Fp.log|20.617.071|152.889|660.066|812.955|5 s|
 |Enwik8|100.000.000|2.226.313|24.529.615|26.755.928|47 s|
 
-These tests are done on a 2017 model of a Macbook Pro and the time measurements should be considered only as an indication. Encoding times are for 99.9% the stage 1 model searching.
+These tests are done on a 2017 model of a Macbook Pro and the time measurements should be considered only as an indication. Encoding times are for 99% the stage 1 model searching.
 Decoding times are not mentioned because the source code is written in object oriented Java and decoding should be magnitudes faster in c(++) with a proper lookup table.
 
 |File|Size|LittleBit 0.2|BZip2|LZMA2|Deflate|
@@ -109,20 +127,15 @@ The following steps lead to the results shown above:
 2. Count every symbol.
 3. Count every combination of two symbols that occur next to each other.
 4. Remove all symbol combinations with a count lower than 4 (for performance reasons).
-5. Find the symbol combination that should be the best symbol combination to merge.
-	(This is a gamble and at best an educated guess.)
-	The formula that leads to good results is; for every symbol combination:
-	score = frequency * (0.2 + max * 3 + min) – minCount
-	Where frequency is the count of the symbol combination. 0.2 is an ad hoc constant that 	seems to improve results. The ‘max’ value is the highest ratio of a single symbol frequency 	compared to the symbol combination frequency (combination frequency / symbol 	frequency). The ‘min’ value is the lowest ratio. The minCount value is a constant value of 4.
-6. If there is no score above 0: go to step 10.
-7. Merge the symbol combination with the highest score to a new symbol.
-8. Update the symbol and symbol combination statistics.
+5. Find the symbol combination that has the highest frequency.
+6. If there is no frequency above 4: go to step 10.
+7. Merge the symbol combination with the highest frequency to a new symbol.
+8. Update the symbol and symbol combination counts.
 9. Go to step 4.
 10. Create a canonical Huffman tree using the symbols and their frequency.
 11. Encode the data using the Huffman tree.
 
-The somewhat random looking frequency ratio (min/max) in the scoring mechanism has an explainable existence. A symbol merge has a negative impact on the frequency of the 2 symbols involved but also on the frequency of the symbol combination that are neighbours of the symbol combination that will be merged. This negatively impacts the position in the Huffman tree for those symbols. A high maximum ratio is a good indicator that the two, soon to be merged, symbols have a strong statistical relation to each other and overall compression ratios will improve by merging. Giving the best ratio a higher weight but also involving the lowest ratio seems to be the best option. Better indicators of a possible best merge are subject of future research.  
-For larger files (like enwik8 or bigger) an adjusted scoring mechanism is probably better. Because of the bigger size of the library the minimum frequency should probably be 5 or even higher.  
+For larger files (like enwik8 or bigger) an adjusted scoring mechanism is probably better. Because of the bigger size of the library the minimum frequency should probably be 5 or even higher.
 
 ### Additional research
 Several additional techniques are tried out to improve compression. The most successful technique was combining symbols while allowing a fixed size gap. Binary data is often dividable in fixed size parts of for example 4 bytes in case of a 32 bits integer array. This technique made it possible to find those repeating occurrences for additional compression power and improved the compression of binary data by around 1% and text by around 0.5%, but at a great cost of at least tripling encoding time. Also decoding would be more complex with recursive patterns. Furthermore it hurt the possibility of the random access reading of a piece of data. Therefor this technique is not presented here.
@@ -136,8 +149,3 @@ The fourth and last technique to mention is using statistics to find natural ‘
 ### Possible improvements
 When sacrificing random access reading, simplicity or the static nature of this algorithm, improvements of compression ratios are easy to make. Replacing Huffman coding with more entropy optimal encoders, using context aware predictors or even Paq-like model mixing could make a huge difference, but is beyond the scope of this project.  
 Better static Huffman trees can be found when using more time costly algorithms such as genetic algorithms and deep recursive searches. Both topics are high on the wish list to be researched but will hurt practical use because of the increase in the cost of encoding time.
-
-### Conclusion
-For me personally it came as a surprise that it was possible to create a program that encodes structured information and maintaining average scoring compression ratios, while using a static Huffman tree.  
-For now the time cost of encoding is impractical and needs further research. Also additional, but probably small, improvements can be made on the stage 1 algorithm to find a more optimal Huffman tree.  
-It would not surprise me if some of the research done here end up in other algorithms. For example the LZ77 family of encoders would benefit from the structures found by the stage 1 algorithm. This way it must be possible to find a lower amount of length-distance pairs (that are also more alike) to represent a piece of data.

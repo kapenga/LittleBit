@@ -1,4 +1,4 @@
-/*
+package io;/*
 Written by Wybren Kapenga
 
 Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
@@ -7,7 +7,7 @@ Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.
 import java.io.IOException;
 import java.io.InputStream;
 
-class BitStreamReader {
+public class BitStreamReader {
 
     private InputStream stream;
     private byte[] buffer;
@@ -16,7 +16,7 @@ class BitStreamReader {
     private int cache;
     private int cacheLeft;
 
-    BitStreamReader(InputStream stream) {
+    public BitStreamReader(InputStream stream) {
         this.stream = stream;
         int bufferSize = 1 << 20;
         buffer = new byte[bufferSize];
@@ -24,7 +24,7 @@ class BitStreamReader {
         bytePosition = 0;
     }
 
-    int nextBit() throws Exception {
+    public int nextBit() throws Exception {
         if(cacheLeft < 1) {
             while (cacheLeft < 24) {
                 if (bytePosition >= bufferLength) {
@@ -41,7 +41,7 @@ class BitStreamReader {
         return result;
     }
 
-    int nextBits(int length) throws IOException {
+    public int nextBits(int length) throws IOException {
         if(cacheLeft < length) {
             while (cacheLeft < 24) {
                 if (bytePosition >= bufferLength) {
@@ -54,9 +54,7 @@ class BitStreamReader {
         }
         int result = (cache & ((1 << length) - 1));
         cache >>= length;
-        cacheLeft-=length;
+        cacheLeft -= length;
         return result;
     }
-
-
 }

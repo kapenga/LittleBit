@@ -1,13 +1,20 @@
+package encoders;
+
+import decoders.Decoder;
+import io.BitStreamWriter;
+
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 
-class Encoder {
-    private int endOfLineSymbol = 0;
+public class Encoder {
+    private final static int endOfLineSymbol = 0;
     private int symbolIndex = 1;
     private int[] symbolReferenceA = new int[MAXSYMBOLCOUNT];
     private int[] symbolReferenceB = new int[MAXSYMBOLCOUNT];
     private int[] symbolCount = new int[MAXSYMBOLCOUNT];
     private int[] symbolSize = new int[MAXSYMBOLCOUNT];
+    private boolean[] hasEndSymbol = new boolean[MAXSYMBOLCOUNT];
 
     private int[] symbols;
 
@@ -21,7 +28,7 @@ class Encoder {
             2. Make it a new symbol
             3. Repeat
          */
-        HashTable fromSymbolToSymbol = new HashTable(DecodeNode.bitSize(symbols.length)-4);
+        HashTable fromSymbolToSymbol = new HashTable(Decoder.bitSize(symbols.length)-4);
         BPlusTreeFSByteArray scoreList = new BPlusTreeFSByteArray(12);
         ArrayList<CNode> touched = new ArrayList<>();
         this.symbols = symbols;
@@ -54,7 +61,7 @@ class Encoder {
 
             if (scoreList.size() < 1) {
                 System.out.println(" done.");
-                System.out.println("Number of symbols: " + symbolIndex);
+                System.out.println("Number of symbols:\t" + symbolIndex);
                 break;
             }
 
@@ -66,6 +73,7 @@ class Encoder {
             symbolReferenceA[symbolIndex] = winner.symbolA;
             symbolReferenceB[symbolIndex] = winner.symbolB;
             symbolSize[symbolIndex] = symbolSize[winner.symbolA] + symbolSize[winner.symbolB];
+            hasEndSymbol[symbolIndex] = hasEndSymbol[winner.symbolB];
             int newSymbol = symbolIndex++;
             fromSymbolToSymbol.delete(winner);
 
@@ -90,7 +98,7 @@ class Encoder {
                     int nextNextIndex = nextIndex;
                     while(++nextNextIndex < symbols.length && symbols[nextNextIndex] < 0);
 
-                    if (nextNextIndex > -1) {
+                    if (nextNextIndex < symbols.length) {
                         lastSymbol = (((long) winner.symbolB) << 32) + symbols[nextNextIndex];
 
                         if (lastSymbol != key) {
@@ -124,10 +132,9 @@ class Encoder {
             }
 
         }
-
     }
 
-    void writeHuffman(BitStreamWriter writer) throws IOException {
+    private void writeHuffman(BitStreamWriter treeWriter, BitStreamWriter dataWriter, long[] rowPositions) throws IOException {
         //Convert the symbols and their parents to Huffman nodes.
         HuffmanNode[] nodes = new HuffmanNode[symbolIndex];
         for(int i = 0; i < symbolIndex; i++)
@@ -143,17 +150,25 @@ class Encoder {
 
         //And lastly write the data.
         //First the tree.
-        tree.writeTree(writer);
+        tree.writeTree(treeWriter);
 
+        long dataWriterStart = dataWriter.length();
+        int rowPositionIndex = 0;
+        rowPositions[rowPositionIndex++] = 0;
         //And now the nodes.
         for (int symbol : symbols)
-            if (symbol > -1)
-                writer.add(nodes[symbol].bitSet);
+            if (symbol > -1) {
+                dataWriter.add(nodes[symbol].bitSet);
+                if(hasEndSymbol[symbol] && rowPositions.length > rowPositionIndex)
+                    rowPositions[rowPositionIndex++] = dataWriter.bitLength();
+            }
+
+        System.out.println("Size of data:\t\t" + (dataWriter.length() - dataWriterStart) + " bytes");
     }
 
     private void addSymbol(int symbolA, int symbolB, int index, boolean countMe, boolean forceFirst, boolean forceSecond, int[] offsetsLeft, int[] offsetsRight, HashTable fromSymbolToSymbol, ArrayList<CNode> touched)
     {
-        if((!forceFirst && symbolCount[symbolA] < MINIMALCOUNT) || (!forceSecond && symbolCount[symbolB] < MINIMALCOUNT))
+        if(hasEndSymbol[symbolA] || (!forceFirst && symbolCount[symbolA] < MINIMALCOUNT) || (!forceSecond && symbolCount[symbolB] < MINIMALCOUNT))
             return;
         long symbol = (((long)symbolA) << 32) + symbolB;
         CNode node = (CNode)fromSymbolToSymbol.get(symbol);
@@ -217,30 +232,54 @@ class Encoder {
         touched.clear();
     }
 
-    static Encoder bytesToSymbols(byte[] input) {
+    //Returns the bit positions of the encoded fields relative to the position of dataWriter at the start.
+    public static long[] encode(byte[][] input, OutputStream dictionaryWriter, OutputStream dataWriter) throws IOException {
         Encoder result = new Encoder();
 
         int[] references = new int[256];
-        int[] symbols = new int[input.length + 1];
-        for (int x = 0; x < input.length; x++) {
-            int b = input[x] & 0xFF;
-            if (references[b] == 0) {
-                result.symbolReferenceA[result.symbolIndex] = b;
-                result.symbolReferenceB[result.symbolIndex] = -1;
-                result.symbolSize[result.symbolIndex] = 1;
-                references[b] = result.symbolIndex++;
+        int[] symbols = new int[getTotalArrayLength(input) + input.length];
+
+        int index = 0;
+        for(int i = 0; i < input.length; i++) {
+            for (int x = 0; x < input[i].length; x++) {
+                int b = input[i][x] & 0xFF;
+                if (references[b] == 0) {
+                    result.symbolReferenceA[result.symbolIndex] = b;
+                    result.symbolReferenceB[result.symbolIndex] = -1;
+                    result.symbolSize[result.symbolIndex] = 1;
+                    result.hasEndSymbol[result.symbolIndex] = false;
+                    references[b] = result.symbolIndex++;
+                }
+                symbols[index++] = references[b];
             }
-            symbols[x] = references[b];
+            symbols[index++] = endOfLineSymbol;
         }
-        symbols[input.length] = result.endOfLineSymbol;
-        result.symbolReferenceA[result.endOfLineSymbol] = -1;
-        result.symbolReferenceB[result.endOfLineSymbol] = -1;
-        result.symbolSize[result.endOfLineSymbol] = 1;
+        result.symbolReferenceA[endOfLineSymbol] = -1;
+        result.symbolReferenceB[endOfLineSymbol] = -1;
+        result.symbolSize[endOfLineSymbol] = 1;
+        result.hasEndSymbol[endOfLineSymbol] = true;
         result.symbolize(symbols);
-        return result;
+
+        BitStreamWriter treeWriter = new BitStreamWriter(dictionaryWriter);
+        BitStreamWriter fieldWriter = dictionaryWriter == dataWriter ? treeWriter : new BitStreamWriter(dataWriter);
+
+        long[] rowPositions = new long[input.length];
+        result.writeHuffman(treeWriter, fieldWriter, rowPositions);
+
+        treeWriter.close();
+        fieldWriter.close();
+
+        return rowPositions;
     }
 
+    private static int getTotalArrayLength(byte[][] array)
+    {
+        int result = 0;
+        for(int i = 0; i < array.length; i++)
+            result += array[i].length;
 
+        return result;
+    }
 
     class CNode implements HashableLong {
         final int symbolA;

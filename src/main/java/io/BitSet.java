@@ -1,36 +1,37 @@
-/*
+package io;/*
 Written by Wybren Kapenga
 
 Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
  */
 
-class BitSet {
+
+public class BitSet {
 
     private long value;
     private int length;
 
-    BitSet(int length)
+    public BitSet(int length)
     {
         this.length = length;
     }
 
-    BitSet(int length, long value)
+    public BitSet(int length, long value)
     {
         this.length = length;
         this.value = value;
     }
 
-    void increase()
+    public void increase()
     {
         value++;
     }
 
-    void increaseLength()
+    public void increaseLength()
     {
         length++;
     }
 
-    void shiftLeft()
+    public void shiftLeft()
     {
         value <<= 1;
     }
@@ -55,16 +56,16 @@ class BitSet {
         return value;
     }
 
-    static BitSet read(BitStreamReader reader, int bits) throws Exception {
-//        long v = 0;
-//        for(int i = 0; i < bits; i++)
-//        {
-//            if(reader.nextBit() > 0)
-//                v |= 1L << i;
-//        }
-//        return new BitSet(bits, v);
-        return new BitSet(bits, reader.nextBits(bits));
-    }
+//    static BitSet read(BitStreamReader reader, int bits) throws Exception {
+////        long v = 0;
+////        for(int i = 0; i < bits; i++)
+////        {
+////            if(reader.nextBit() > 0)
+////                v |= 1L << i;
+////        }
+////        return new BitSet(bits, v);
+//        return new BitSet(bits, reader.nextBits(bits));
+//    }
 
     BitSet copy()
     {
@@ -88,12 +89,10 @@ class BitSet {
         return other.length == length && other.value == value;
     }
 
-    BitSet reverse()
+    public BitSet reverse()
     {
         BitSet result = new BitSet(length);
-        for(int i = 0; i < length; i++)
-            if(((value >> i) & 1) == 1)
-                result.value |= 1 << (length - i - 1);
+        result.value = Long.reverse(value) >>> (64-length);
         return result;
     }
 }

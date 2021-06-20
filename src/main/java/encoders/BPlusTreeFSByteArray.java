@@ -1,4 +1,4 @@
-/*
+package encoders;/*
     Memory based B+ Tree for storing fixed size byte arrays.
     Build as an alternative for RoaringBitmaps. RoaringBitmaps is fast and good, but not for large lists of >32 bit values.
     This class has a better performance and memory usage as Roaring64NavigableMap in case of >64 bit values and more than 1.000.000 items.

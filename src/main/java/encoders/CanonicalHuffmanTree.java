@@ -1,8 +1,12 @@
-/*
+package encoders;/*
 Written by Wybren Kapenga
 
 Licenced under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
  */
+
+import decoders.Decoder;
+import io.BitSet;
+import io.BitStreamWriter;
 
 import java.io.IOException;
 
@@ -10,15 +14,12 @@ class CanonicalHuffmanTree {
 
     private int[] depths;
     private HuffmanNode[][] frequencyArray;
-    private HuffmanNode endOfLineSymbol;
     private int firstOccurrence;
     private int lastOccurrence;
     private int biggestCount;
 
-
     CanonicalHuffmanTree(HuffmanNode[] frequencies)
     {
-        endOfLineSymbol = frequencies[0];
         HuffmanNode root = HuffmanNode.method2(frequencies);
 
         int[] depths = new int[64];
@@ -91,10 +92,10 @@ class CanonicalHuffmanTree {
     void writeTree(BitStreamWriter writer) throws IOException {
         long startLength = writer.length();
 
-        int bitSize = DecodeNode.bitSize(biggestCount);
+        int bitSize = Decoder.bitSize(biggestCount);
         BitSet bits = new BitSet(5, bitSize);
         BitSet last = new BitSet(6, lastOccurrence);
-        int firstBitSize = DecodeNode.bitSize(lastOccurrence-1); //It should be smaller
+        int firstBitSize = Decoder.bitSize(lastOccurrence-1); //It should be smaller
         BitSet first = new BitSet(firstBitSize, firstOccurrence);
         writer.add(bits);
         writer.add(last);
@@ -107,7 +108,6 @@ class CanonicalHuffmanTree {
         }
 
         int maxLiteralCount = 257;
-        writer.add(endOfLineSymbol.bitSet);  //end of line symbol first
         for(int i = firstOccurrence; i <= lastOccurrence; i++)
         {
             if(depths[i] > 0) {
@@ -118,12 +118,21 @@ class CanonicalHuffmanTree {
                     else
                         break;
                 }
-                BitSet amount = new BitSet(Math.min(DecodeNode.bitSize(maxLiteralCount),DecodeNode.bitSize(depths[i])), literalCount);
+                BitSet amount = new BitSet(Math.min(Decoder.bitSize(maxLiteralCount), Decoder.bitSize(depths[i])), literalCount);
                 writer.add(amount);
                 maxLiteralCount -= literalCount;
                 for (int x = 0; x < literalCount; x++) {
-                    if (frequencyArray[i][x].symbol > -1) {
+                    if (frequencyArray[i][x].symbol > 0) {
                         writer.addByte(frequencyArray[i][x].symbol);
+                    }
+                    else //Special case for endOfLineSymbol or byte 0
+                    {
+                        writer.addByte(0);
+                        BitSet isEndOfLineSet = new BitSet(1);
+                        if(frequencyArray[i][x].symbol == 0)
+                            isEndOfLineSet.increase();
+
+                        writer.add(isEndOfLineSet);
                     }
                 }
                 for (int x = literalCount; x < depths[i]; x++) {
@@ -133,7 +142,6 @@ class CanonicalHuffmanTree {
             }
         }
         long endLength = writer.length();
-        System.out.println(" done.");
 
         System.out.println("Size of library:\t" + (endLength - startLength) + " bytes");
     }

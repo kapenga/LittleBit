@@ -1,3 +1,5 @@
+package encoders;
+
 public class HashTable {
 
     private final HashableLong[] values;
