@@ -1,5 +1,5 @@
 package encoders;
 
-public interface HashableLong {
-    long getHash();
+public abstract class HashableLong {
+    public long hashValue;
 }

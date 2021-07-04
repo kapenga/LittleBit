@@ -9,8 +9,8 @@ package encoders;/*
 
 class BPlusTreeFSByteArray {
 
-    private static final int DEFAULT_BRANCHING_FACTOR_INNER_NODE = 1024;
-    private static final int DEFAULT_BRANCHING_FACTOR = 256;
+    private static final int DEFAULT_BRANCHING_FACTOR_INNER_NODE = 512;
+    private static final int DEFAULT_BRANCHING_FACTOR = 128;
 
     private final int fixedSize;
     private Node root;
@@ -24,13 +24,9 @@ class BPlusTreeFSByteArray {
 
     private static int compareKey(byte[] a, int offset, byte[] b)
     {
-        for (int i = 0; i < b.length; i++) {
-            int aByte = a[offset + i] & 0xFF;
-            int bByte = b[i] & 0xFF;
-            if (aByte < bByte)
-                return -1;
-            else if (aByte > bByte)
-                return 1;
+        for (int i = 0; i < b.length; i++, offset++) {
+            if(a[offset] != b[i])
+                return ((a[offset] & 0xFF) < (b[i] & 0xFF)) ? -1 : 1;
         }
         return 0;
     }
